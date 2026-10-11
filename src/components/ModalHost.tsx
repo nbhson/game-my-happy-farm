@@ -23,6 +23,7 @@ import RaceModal from './RaceModal';
 import MarketModal from './MarketModal';
 import BoardModal from './BoardModal';
 import WeddingModal from './WeddingModal';
+import SmithModal from './SmithModal';
 import { GameIcon } from './GameIcon';
 
 // Casino (sảnh + 5 bàn + logic bài) nặng — tải lười khi mở, nhẹ bundle lúc đăng nhập
@@ -49,6 +50,7 @@ export default function ModalHost() {
   else if (modal === 'race') { icon = 'shop'; title = '🏁 TRƯỜNG ĐUA XE'; body = <RaceModal />; }
   else if (modal === 'market') { icon = 'shop'; title = '🏪 CHỢ ĐÊM CUỐI TUẦN'; body = <MarketModal />; }
   else if (modal === 'board') { icon = 'mail'; title = '📌 BẢNG TIN LÀNG'; body = <BoardModal />; }
+  else if (modal === 'smith') { icon = 'shop'; title = '🔨 LÒ RÈN THỊ TRẤN'; body = <SmithModal />; }
   else if (modal === 'wedding') { icon = 'quest'; title = '💒 NHÀ VĂN HÓA'; body = <WeddingModal />; }
   else if (modal === 'settings') { icon = 'quest'; title = 'CÀI ĐẶT'; body = <SettingsModal />; }
   else if (typeof modal === 'object' && modal.name === 'house') {

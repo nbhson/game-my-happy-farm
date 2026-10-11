@@ -4,6 +4,7 @@ import type { Animal, AnimalType, CoopCap, DailyState, GraphicsQuality, InAct, M
 import {
   ANIMALS, BITE_MAX, BITE_MIN, BITE_WINDOW, CARS, CROPS, DAY_LENGTH, FEED_PRO_PRICE, FEED_PRICE,
   BAIT_PRO_PRICE, BAIT_PRICE, DEFAULT_OUTFIT, FISHES, MAX_CAP, MAX_PLOTS, MAX_POND, OUTFITS, QUESTS,
+  WING_MAX_LV, WING_UP, isWing,
   PEST_PRICE, PEST_RATE, genBiteCombo,
   type BiteDir,
   type OutfitSlot,
@@ -86,6 +87,8 @@ interface GameState {
   // thời trang: slot -> itemId + kho đồ đã sở hữu
   outfit: Record<string, string>;
   ownedOutfits: string[];
+  /** cấp cánh từng món (mua ở shop mặc định Lv1, rèn tối đa Lv5) — persist + sync DB */
+  wingLv: Record<string, number>;
   // ô tô: xe đã mua (gara) + xe đang lái (null = đi bộ)
   ownedCars: string[];
   activeCar: string | null;
@@ -117,6 +120,7 @@ interface GameState {
     daily?: DailyState; junkAt?: number;
     redeemedCodes?: string[];
     outfit?: Record<string, string>; ownedOutfits?: string[];
+    wingLv?: Record<string, number>;
     ownedCars?: string[]; activeCar?: string | null;
     quality?: GraphicsQuality; viewH?: number; kem?: boolean;
     autoQuality?: boolean; resMode?: ResMode;
@@ -129,8 +133,8 @@ interface GameState {
   setScene: (s: SceneKind) => void;
   setInteriorId: (id: string | null) => void;
   setInAct: (a: InAct | null) => void;
-  /** đảm bảo daily đúng ngày hiện tại (reset flag/ngày khi sang ngày mới) */
-  touchDaily: () => void;
+  /** đảm bảo daily đúng ngày thực hiện tại (reset khi qua 00:00). Trả về true nếu vừa refresh. */
+  touchDaily: () => boolean;
   setDailyFlag: (k: string) => void;
   addCatGift: (cat: string) => void;
   setDailyQuests: (q: DailyState['quests']) => void;
@@ -165,6 +169,8 @@ interface GameState {
   exchangeGem: () => void;
   buyOutfit: (id: string) => void;
   wearOutfit: (id: string) => void;
+  /** Rèn cánh lên 1 cấp ở Lò rèn (tốn phí mỗi lần, rớt giữ nguyên Lv). Trả về msg để modal hiển thị. */
+  upgradeWing: (id: string) => { ok: boolean; msg: string };
   /** Mua ô tô ở Chợ Xe — xe cất vào gara, ra gara bấm Lái để chạy */
   buyCar: (id: string) => void;
   /** Lên/xuống xe: driveCar(id) khi sở hữu, driveCar(null) để xuống đi bộ */
@@ -257,6 +263,28 @@ function migrateFishes(old: PondFish[] | undefined, uidSeqRef: { v: number }): P
 
 export const xpNeed = (level: number) => level * 100;
 
+/** Key ngày thực local YYYY-MM-DD — nhiệm vụ ngày refresh lúc 00:00 */
+export function todayKey(d = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+/** Khởi tạo daily trống cho ngày thực hiện tại (giữ day ingame để tương thích save cũ) */
+function freshDaily(day: number): DailyState {
+  return { day, date: todayKey(), flags: {}, cats: [], quests: [] };
+}
+/** Chuẩn hóa daily từ save cũ (thiếu date) + reset nếu đã qua 00:00 */
+function normalizeDaily(raw: DailyState | undefined, day: number): DailyState {
+  if (!raw || typeof raw !== 'object') return freshDaily(day);
+  const today = todayKey();
+  // save cũ chưa có date → coi như đã cũ, reset 1 lần về hôm nay
+  if (!raw.date || raw.date !== today) return { day, date: today, flags: {}, cats: [], quests: [] };
+  return { day, date: raw.date, flags: raw.flags ?? {}, cats: raw.cats ?? [], quests: raw.quests ?? [] };
+}
+// throttle check 00:00 trong tick (không cần tạo Date mỗi frame)
+let lastMidnightCheck = 0;
+
 /** Làm hàng loạt (⚡) mở khóa từ cấp này — dưới mức này bấm vào sẽ nhận thông báo */
 export const BULK_MIN_LEVEL = 10;
 /** Thông báo khóa khi chưa đủ cấp mở Hàng loạt */
@@ -333,11 +361,12 @@ export const useGame = create<GameState>()(
       modal: null, shopTab: 'seed', scene: 'farm',
       interiorId: null, inAct: null,
       baLove: 0, loveClaim: [], fundTotal: 0, fundClaim: [],
-      daily: { day: 1, flags: {}, cats: [], quests: [] },
+      daily: freshDaily(1),
       junkAt: 0, speedUntil: null, stageColor: '#ffd24d',
       fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null,
       biteCatchId: null, biteCombo: null, biteProgress: 0,
       catchPop: null, outfit: { ...DEFAULT_OUTFIT }, ownedOutfits: Object.keys(DEFAULT_OUTFIT).map((k) => DEFAULT_OUTFIT[k as OutfitSlot]),
+      wingLv: {},
       ownedCars: [], activeCar: null,
       quality: 'high', autoQuality: true, autoLevel: 'medium', resMode: 'auto', thiefBiteUntil: null,
       viewH: defaultViewH(),
@@ -369,13 +398,24 @@ export const useGame = create<GameState>()(
             baLove: data.baLove ?? 0, fundTotal: data.fundTotal ?? 0,
             loveClaim: Array.isArray(data.loveClaim) ? data.loveClaim : [],
             fundClaim: Array.isArray(data.fundClaim) ? data.fundClaim : [],
-            daily: data.daily ?? { day: data.day, flags: {}, cats: [], quests: [] },
+            daily: normalizeDaily(data.daily, data.day),
             junkAt: data.junkAt ?? 0,
             redeemedCodes: Array.isArray(data.redeemedCodes) ? data.redeemedCodes.map((c) => String(c).toLowerCase()) : [],
             outfit: { ...DEFAULT_OUTFIT, ...(data.outfit ?? {}) },
             ownedOutfits: Array.isArray(data.ownedOutfits) && data.ownedOutfits.length > 0
               ? [...new Set([...Object.values(DEFAULT_OUTFIT), ...data.ownedOutfits])]
               : Object.values(DEFAULT_OUTFIT),
+            // save cũ chưa có wingLv → cánh đã sở hữu mặc định Lv1
+            wingLv: (() => {
+              const wl: Record<string, number> = {};
+              const owned = Array.isArray(data.ownedOutfits) ? data.ownedOutfits : [];
+              for (const id of owned) {
+                if (!isWing(id)) continue;
+                const v = (data.wingLv as Record<string, number> | undefined)?.[id];
+                wl[id] = Math.max(1, Math.min(WING_MAX_LV, Math.round(v ?? 1) || 1));
+              }
+              return wl;
+            })(),
             ownedCars: Array.isArray(data.ownedCars) ? data.ownedCars.filter((id) => !!CARS[id]) : [],
             activeCar: data.activeCar && CARS[data.activeCar] && (data.ownedCars ?? []).includes(data.activeCar) ? data.activeCar : null,
             quality: data.quality === 'low' || data.quality === 'medium' ? data.quality : 'high',
@@ -398,9 +438,12 @@ export const useGame = create<GameState>()(
             stats: freshStats(), questIdx: 0, uidSeq: 1,
             redeemedCodes: [],
             outfit: { ...DEFAULT_OUTFIT }, ownedOutfits: Object.values(DEFAULT_OUTFIT),
+            wingLv: {},
             ownedCars: [], activeCar: null,
             quality: 'high', autoQuality: true, autoLevel: 'medium', resMode: 'auto', viewH: defaultViewH(), kem: false,
             modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, petFx: null, plotFx: [], scene: 'farm',
+            baLove: 0, loveClaim: [], fundTotal: 0, fundClaim: [],
+            daily: freshDaily(1), junkAt: 0,
           });
         }
       },
@@ -418,7 +461,13 @@ export const useGame = create<GameState>()(
       setInAct: (a) => set({ inAct: a }),
       touchDaily: () => {
         const s = get();
-        if (s.daily.day !== s.day) set({ daily: { day: s.day, flags: {}, cats: [], quests: [] } });
+        const today = todayKey();
+        // save cũ chưa có date → reset 1 lần về hôm nay
+        if ((s.daily.date ?? '') !== today) {
+          set({ daily: { day: s.day, date: today, flags: {}, cats: [], quests: [] } });
+          return true;
+        }
+        return false;
       },
       setDailyFlag: (k) => {
         get().touchDaily();
@@ -485,6 +534,19 @@ export const useGame = create<GameState>()(
       tick: (dt) => {
         const s = get();
         if (!s.started) return;
+        // qua 00:00 ngày thực → refresh nhiệm vụ ngày (kể cả đang treo game)
+        const nowMs0 = Date.now();
+        if (nowMs0 - lastMidnightCheck > 2000) {
+          lastMidnightCheck = nowMs0;
+          if ((s.daily.date ?? '') !== todayKey(new Date(nowMs0))) {
+            set({ daily: { day: s.day, date: todayKey(new Date(nowMs0)), flags: {}, cats: [], quests: [] } });
+            // đóng panel bảng cũ (nếu đang mở) để lần mở sau vẽ lại list mới
+            const cur = get();
+            if (cur.inAct?.furn === 'board') set({ inAct: null });
+            get().toast('🌅 Ngày mới! Nhiệm vụ ngày đã làm mới!');
+            void import('../net/account').then((m) => m.syncNow()).catch(() => {});
+          }
+        }
         // cá vừa giật dính: hết 2.5s thì dọn hiệu ứng
         if (s.catchPop && Date.now() > s.catchPop.until) set({ catchPop: null });
         // bị chó cắn: hết 2.5s thì dọn hiệu ứng GÂU!
@@ -1049,7 +1111,9 @@ export const useGame = create<GameState>()(
         const px = it.priceXu ?? 0, pg = it.priceGem ?? 0;
         if (s.xu < px) { sfx.error(); get().toast('Không đủ xu!'); return; }
         if (s.gem < pg) { sfx.error(); get().toast('Không đủ gem!'); return; }
-        set({ xu: s.xu - px, gem: s.gem - pg, ownedOutfits: [...s.ownedOutfits, id] });
+        // cánh mua ở shop mặc định Lv1
+        const wingLv = isWing(id) ? { ...s.wingLv, [id]: 1 } : s.wingLv;
+        set({ xu: s.xu - px, gem: s.gem - pg, ownedOutfits: [...s.ownedOutfits, id], wingLv });
         sfx.coin(); get().toast(`Đã mua ${it.emoji} ${it.name}! Đồ đã cất vào Tủ đồ 🎒`);
         get().addXP(5);
         saveSoon();
@@ -1064,6 +1128,30 @@ export const useGame = create<GameState>()(
         sfx.click();
         get().toast(`Đã mặc ${it.emoji} ${it.name}!`);
         saveSoon();
+      },
+      upgradeWing: (id) => {
+        const s = get();
+        const it = OUTFITS[id];
+        if (!it || !isWing(id)) return { ok: false, msg: 'Chỉ rèn được cánh!' };
+        if (!s.ownedOutfits.includes(id)) { sfx.error(); return { ok: false, msg: 'Chưa sở hữu cánh này — mua ở Shop thời trang!' }; }
+        const lv = Math.max(1, Math.min(WING_MAX_LV, s.wingLv[id] ?? 1));
+        if (lv >= WING_MAX_LV) { sfx.error(); return { ok: false, msg: 'Cánh đã Lv5 tối đa!' }; }
+        const cost = WING_UP[lv + 1];
+        if (s.xu < cost.xu) { sfx.error(); return { ok: false, msg: `Thiếu ${cost.xu - s.xu} xu nữa mới rèn được!` }; }
+        if (s.gem < cost.gem) { sfx.error(); return { ok: false, msg: `Thiếu ${cost.gem - s.gem} gem nữa mới rèn được!` }; }
+        set({ xu: s.xu - cost.xu, gem: s.gem - cost.gem });
+        if (Math.random() < cost.rate) {
+          set((st) => ({ wingLv: { ...st.wingLv, [id]: lv + 1 } }));
+          sfx.lvup();
+          get().toast(`🔨 Rèn thành công! ${it.name} lên Lv${lv + 1}!`);
+          get().addXP(10);
+          saveSoon();
+          return { ok: true, msg: `Thành công! ${it.name} lên Lv${lv + 1} ✨` };
+        }
+        sfx.error();
+        get().toast(`💥 Rèn thất bại (tỉ lệ ${Math.round(cost.rate * 100)}%)! Cánh vẫn giữ Lv${lv}, ráng lại nhé!`);
+        saveSoon();
+        return { ok: false, msg: `Thất bại! Cánh giữ nguyên Lv${lv} (tỉ lệ ${Math.round(cost.rate * 100)}%)` };
       },
       buyCar: (id) => {
         const s = get();
@@ -1305,17 +1393,36 @@ export const useGame = create<GameState>()(
           stats: freshStats(), questIdx: 0, uidSeq: 1,
           redeemedCodes: [],
           outfit: { ...DEFAULT_OUTFIT }, ownedOutfits: Object.values(DEFAULT_OUTFIT),
+          wingLv: {},
           ownedCars: [], activeCar: null,
           quality: 'high', autoQuality: true, autoLevel: 'medium', resMode: 'auto', kem: false,
           modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, petFx: null, plotFx: [], toasts: [], scene: 'farm',
           interiorId: null, inAct: null, baLove: 0, loveClaim: [], fundTotal: 0, fundClaim: [],
-          daily: { day: 1, flags: {}, cats: [], quests: [] },
+          daily: freshDaily(1),
           junkAt: 0, speedUntil: null, stageColor: '#ffd24d',
         });
       },
     }),
     {
       name: 'nongtrai-store',
+      version: 3,
+      // save v1: daily chưa có date (reset theo day ingame) → v2 reset 1 lần về ngày thực
+      // save v2: chưa có wingLv → v3 backfill cánh đã sở hữu về Lv1
+      migrate: (persisted: unknown) => {
+        const p = (persisted ?? {}) as Record<string, unknown>;
+        let out: Record<string, unknown> = { ...(p as object) };
+        const d = p.daily as { date?: string } | undefined;
+        if (d && !d.date) {
+          out = { ...out, daily: { ...(d as object), date: todayKey() } };
+        }
+        if (!out.wingLv || typeof out.wingLv !== 'object') {
+          const wl: Record<string, number> = {};
+          const owned = Array.isArray(out.ownedOutfits) ? (out.ownedOutfits as string[]) : [];
+          for (const id of owned) if (isWing(id)) wl[id] = 1;
+          out = { ...out, wingLv: wl };
+        }
+        return out as never;
+      },
       // KHÔNG persist `started` và trạng thái câu: luôn boot về màn hình login,
       // farm lấy từ DB theo username (server hoặc localStorage theo user).
       partialize: (s) => ({
@@ -1330,6 +1437,7 @@ export const useGame = create<GameState>()(
         baLove: s.baLove, loveClaim: s.loveClaim, fundTotal: s.fundTotal, fundClaim: s.fundClaim,
         daily: s.daily, junkAt: s.junkAt,
         outfit: s.outfit, ownedOutfits: s.ownedOutfits,
+        wingLv: s.wingLv,
         ownedCars: s.ownedCars, activeCar: s.activeCar,
         quality: s.quality, autoQuality: s.autoQuality, resMode: s.resMode, viewH: s.viewH, kem: s.kem,
         stageColor: s.stageColor,

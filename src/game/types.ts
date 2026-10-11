@@ -51,7 +51,7 @@ export interface Stats {
 
 export type ModalKind =
   | null
-  | 'shop' | 'bag' | 'quest' | 'help' | 'village' | 'townChat' | 'townEmote' | 'casino' | 'gift' | 'outfit' | 'settings' | 'lottery' | 'carshop' | 'race' | 'market' | 'board' | 'wedding'
+  | 'shop' | 'bag' | 'quest' | 'help' | 'village' | 'townChat' | 'townEmote' | 'casino' | 'gift' | 'outfit' | 'settings' | 'lottery' | 'carshop' | 'race' | 'market' | 'board' | 'wedding' | 'smith'
   | { name: 'seed'; plot: number }
   | { name: 'stock' }
   | { name: 'bait'; pier: number }
@@ -81,7 +81,8 @@ export interface InAct {
   holdSecs?: number;
 }
 export interface DailyQuestState { id: string; from: number; done: boolean; claimed: boolean }
-export interface DailyState { day: number; flags: Record<string, boolean>; cats: string[]; quests: DailyQuestState[] }
+/** Daily reset theo ngày thực (00:00 local): `date` = YYYY-MM-DD, `day` giữ lại để tương thích save cũ */
+export interface DailyState { day: number; date: string; flags: Record<string, boolean>; cats: string[]; quests: DailyQuestState[] }
 
 /** Cảm xúc / hành động realtime ở thị trấn */
 export type TownEmote = 'wave' | 'dance' | 'sit' | 'laugh' | 'heart' | 'sleep' | 'angry' | 'clap'

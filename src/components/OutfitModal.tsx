@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { OUTFITS, OUTFIT_SLOTS, type OutfitSlot } from '../game/data';
+import { OUTFITS, OUTFIT_SLOTS, WING_MAX_LV, wingLvName, type OutfitSlot } from '../game/data';
 import { useGame } from '../game/store';
 import { sfx } from '../game/audio';
 import { GameIcon } from './GameIcon';
@@ -78,11 +78,13 @@ function ShopTab({ slot, setSlot }: { slot: OutfitSlot; setSlot: (sl: OutfitSlot
           const owned = s.ownedOutfits.includes(it.id);
           const worn = s.outfit[it.slot] === it.id;
           const price = it.priceGem ? `${it.priceGem} gem` : it.priceXu ? `${it.priceXu} xu` : 'Miễn phí';
+          const wlv = it.slot === 'wing' && it.id !== 'wing_none' ? Math.max(1, Math.min(WING_MAX_LV, s.wingLv[it.id] ?? 1)) : 0;
           return (
             <div key={it.id} className={`border-[3px] rounded-xl p-2 text-center ${worn ? 'bg-yellow-100 border-yellow-500' : 'bg-white border-black'}`}>
-              <div className="flex justify-center bg-[#f3efe4] border-2 border-black rounded-lg py-1"><OutfitPreview slot={it.slot} itemId={it.id} size={72} /></div>
+              <div className="flex justify-center bg-[#f3efe4] border-2 border-black rounded-lg py-1"><OutfitPreview slot={it.slot} itemId={it.id} size={72} level={wlv || 1} /></div>
               <div className="font-extrabold text-[13px]">{it.name} {worn && '✅'}</div>
-              <div className="text-[11px] text-stone-500 min-h-[28px]">{it.desc}</div>
+              {wlv > 0 && <div className="text-[11px] font-black text-purple-700">Lv{wlv} {wingLvName(wlv)} {worn || owned ? '' : ''}</div>}
+              <div className="text-[11px] text-stone-500 min-h-[28px]">{it.desc}{wlv > 0 && !owned ? ' • Mua là Lv1, rèn ở Lò rèn thị trấn!' : ''}</div>
               <div className="text-[12px] font-black text-amber-600 mb-1">{owned ? (worn ? 'Đang mặc' : 'Đã có trong tủ 🎒') : price}</div>
               {worn ? (
                 <div className="text-[11px] font-bold text-green-600">Đẹp lắm, khỏi đổi!</div>
@@ -145,10 +147,12 @@ function WardrobeTab({ goShop }: { goShop: () => void }) {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {items.map((it) => {
                   const worn = s.outfit[it.slot] === it.id;
+                  const wlv = it.slot === 'wing' && it.id !== 'wing_none' ? Math.max(1, Math.min(WING_MAX_LV, s.wingLv[it.id] ?? 1)) : 0;
                   return (
                     <div key={it.id} className={`border-[3px] rounded-xl p-2 text-center ${worn ? 'bg-yellow-100 border-yellow-500' : 'bg-white border-black'}`}>
-                      <div className="flex justify-center bg-[#f3efe4] border-2 border-black rounded-lg py-1"><OutfitPreview slot={it.slot} itemId={it.id} size={72} /></div>
+                      <div className="flex justify-center bg-[#f3efe4] border-2 border-black rounded-lg py-1"><OutfitPreview slot={it.slot} itemId={it.id} size={72} level={wlv || 1} /></div>
                       <div className="font-extrabold text-[13px]">{it.name} {worn && '✅'}</div>
+                      {wlv > 0 && <div className="text-[11px] font-black text-purple-700">Lv{wlv} {wingLvName(wlv)}</div>}
                       {worn ? (
                         <div className="text-[11px] font-bold text-green-600 mt-1">Đang mặc</div>
                       ) : (

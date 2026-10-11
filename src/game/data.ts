@@ -409,6 +409,25 @@ export const DEFAULT_OUTFIT: Record<OutfitSlot, string> = {
   shirt: 'shirt_basic', pants: 'pants_basic', hat: 'hat_la',
   hair: 'hair_black', shoes: 'shoes_basic', acc: 'acc_none', wing: 'wing_none',
 };
+/** Cánh có phải đồ nâng cấp được ở Lò rèn không (trừ cánh trống) */
+export function isWing(id: string): boolean {
+  const it = OUTFITS[id];
+  return !!it && it.slot === 'wing' && id !== 'wing_none';
+}
+// ---------- LÒ RÈN nâng cấp cánh: mua ở shop mặc định Lv1, rèn tối đa Lv5 ----------
+// Tỉ lệ theo yêu cầu: Lv2 90% → Lv3 50% → Lv4 10% → Lv5 1%. Rớt giữ nguyên Lv, mất phí.
+export const WING_MAX_LV = 5;
+export interface WingUpCost { xu: number; gem: number; rate: number }
+export const WING_UP: Record<number, WingUpCost> = {
+  2: { xu: 1000, gem: 0, rate: 0.9 },
+  3: { xu: 3000, gem: 5, rate: 0.5 },
+  4: { xu: 6000, gem: 15, rate: 0.1 },
+  5: { xu: 10000, gem: 50, rate: 0.01 },
+};
+/** Tên hiển thị cấp cánh: Lv1 Sơ khai … Lv5 Chí tôn */
+export function wingLvName(lv: number): string {
+  return lv >= 5 ? 'Chí tôn' : lv === 4 ? 'Huyền thoại' : lv === 3 ? 'Tinh xảo' : lv === 2 ? 'Cường hóa' : 'Sơ khai';
+}
 /** Màu áo đang mặc (áo đặc biệt đè màu avatar) */
 export function shirtColorOf(outfit?: Record<string, string>, fallback = '#3f9e4d'): string {
   const id = outfit?.shirt;

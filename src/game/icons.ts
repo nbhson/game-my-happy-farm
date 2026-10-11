@@ -242,7 +242,7 @@ export function drawCowHead(ctx: CanvasRenderingContext2D, x: number, y: number,
 }
 
 // ---------- cá vẽ tay: 8 loại phân biệt rõ (thay 🐟🐠🦐🦀🐡🎏🐙🦈) ----------
-export type FishIconId = 'caro' | 'cachep' | 'tom' | 'cua' | 'caloc' | 'cakoi' | 'bachtuoc' | 'camap' | string;
+export type FishIconId = 'caro' | 'cachep' | 'tom' | 'cua' | 'caloc' | 'cakoi' | 'bachtuoc' | 'camap' | 'cadieu' | 'catre' | 'luon' | 'ech' | 'cahoi' | 'tomhum' | 'cavang' | string;
 
 function fishBody(ctx: CanvasRenderingContext2D, len: number, h: number, top: string, belly: string) {
   const g = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
@@ -376,6 +376,113 @@ export function drawFish(ctx: CanvasRenderingContext2D, x: number, y: number, le
       eye(len * 0.36, -3, 2.4);
       ctx.fillStyle = '#fff';
       ctx.beginPath(); ctx.moveTo(len * 0.42, 3); ctx.lineTo(len * 0.52, 3); ctx.lineTo(len * 0.47, 5.5); ctx.closePath(); ctx.fill();
+      break;
+    }
+    case 'cadieu': { // diêu hồng: thân hồng, vây đỏ
+      fishTail(ctx, -len / 2, len, 13, '#d81b60');
+      fishBody(ctx, len, 14, '#f48fb1', '#fce4ec');
+      ctx.fillStyle = '#d81b60';
+      ctx.beginPath(); ctx.moveTo(-3, -7); ctx.lineTo(3, -12); ctx.lineTo(6, -6); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(173,20,87,.4)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(-len * 0.3, 0); ctx.lineTo(len * 0.3, 0); ctx.stroke();
+      eye(len * 0.32, -2, 2.6);
+      break;
+    }
+    case 'catre': { // trê xám + râu dài 2 bên
+      fishTail(ctx, -len / 2, len * 1.05, 12, '#424242');
+      fishBody(ctx, len * 1.05, 12, '#616161', '#bdbdbd');
+      ctx.fillStyle = '#424242';
+      ctx.beginPath(); ctx.moveTo(-4, -6); ctx.lineTo(2, -11); ctx.lineTo(6, -5); ctx.closePath(); ctx.fill();
+      // râu trê
+      ctx.strokeStyle = '#e0e0e0'; ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.moveTo(len * 0.46, 0); ctx.quadraticCurveTo(len * 0.62, -2, len * 0.66, -8); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(len * 0.46, 2); ctx.quadraticCurveTo(len * 0.62, 4, len * 0.64, 9); ctx.stroke();
+      eye(len * 0.36, -2, 2.2);
+      break;
+    }
+    case 'luon': { // lươn: thân dài uốn, vây nhỏ
+      ctx.strokeStyle = '#558b2f'; ctx.lineWidth = 9; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-len * 0.42, 4); ctx.quadraticCurveTo(0, -4 + Math.sin(t * 5) * 2, len * 0.4, 2); ctx.stroke();
+      ctx.strokeStyle = '#9ccc65'; ctx.lineWidth = 4.5;
+      ctx.beginPath(); ctx.moveTo(-len * 0.42, 4); ctx.quadraticCurveTo(0, -4 + Math.sin(t * 5) * 2, len * 0.4, 2); ctx.stroke();
+      // vây lưng mỏng + đầu
+      ctx.fillStyle = '#33691e';
+      ctx.beginPath(); ctx.moveTo(-6, -6); ctx.lineTo(2, -9); ctx.lineTo(4, -5); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#7cb342'; ctx.beginPath(); ctx.arc(len * 0.42, 1, 4.4, 0, 7); ctx.fill();
+      eye(len * 0.44, 0, 1.8);
+      break;
+    }
+    case 'ech': { // ếch: ngồi trong ao — thân tròn, mắt lồi 2 bên, chân sau
+      ctx.fillStyle = '#2e7d32';
+      ctx.beginPath(); ctx.ellipse(-len * 0.3, 7, 7, 3.4, 0.4, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(len * 0.3, 7, 7, 3.4, -0.4, 0, 7); ctx.fill();
+      const eg = ctx.createLinearGradient(0, -9, 0, 9);
+      eg.addColorStop(0, '#66bb6a'); eg.addColorStop(1, '#1b5e20');
+      ctx.fillStyle = eg;
+      ctx.beginPath(); ctx.ellipse(0, 0, len * 0.36, 9, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#c8e6c9';
+      ctx.beginPath(); ctx.ellipse(0, 4, len * 0.22, 4.5, 0, 0, 7); ctx.fill();
+      // mắt lồi trên đỉnh đầu
+      ctx.fillStyle = '#43a047';
+      ctx.beginPath(); ctx.arc(-5, -9, 4.6, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(5, -9, 4.6, 0, 7); ctx.fill();
+      ctx.fillStyle = '#ffeb3b';
+      ctx.beginPath(); ctx.arc(-5, -9, 3, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(5, -9, 3, 0, 7); ctx.fill();
+      ctx.fillStyle = '#102027';
+      ctx.beginPath(); ctx.arc(-5, -9, 1.5, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(5, -9, 1.5, 0, 7); ctx.fill();
+      // miệng cười
+      ctx.strokeStyle = '#10300f'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(0, 1, 5, 0.3, Math.PI - 0.3); ctx.stroke();
+      break;
+    }
+    case 'cahoi': { // hồi: thân cam hồng + đốm đen + vây mỡ
+      fishTail(ctx, -len / 2, len * 1.05, 13, '#e64a19');
+      fishBody(ctx, len * 1.05, 14, '#ff8a65', '#fbe9e7');
+      ctx.fillStyle = '#bf360c';
+      for (let i = 0; i < 4; i++) ell(ctx, -10 + i * 7, -1, 2, 1.5);
+      ctx.fillStyle = '#e64a19';
+      ctx.beginPath(); ctx.moveTo(-4, -7); ctx.lineTo(2, -13); ctx.lineTo(6, -6); ctx.closePath(); ctx.fill();
+      // vây mỡ đặc trưng cá hồi
+      ctx.fillStyle = '#ffab91';
+      ctx.beginPath(); ctx.moveTo(-12, -6); ctx.lineTo(-8, -10); ctx.lineTo(-5, -6); ctx.closePath(); ctx.fill();
+      eye(len * 0.36, -2, 2.4);
+      break;
+    }
+    case 'tomhum': { // tôm hùm: đỏ đậm + càng to 2 bên + râu
+      ctx.strokeStyle = '#7f0000'; ctx.lineWidth = 8; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(0, 2, len * 0.26, 0.4, 5.3); ctx.stroke();
+      ctx.strokeStyle = '#d32f2f'; ctx.lineWidth = 4.5;
+      ctx.beginPath(); ctx.arc(0, 2, len * 0.26, 0.6, 4.9); ctx.stroke();
+      // càng khổng lồ phía trước
+      ctx.fillStyle = '#b71c1c';
+      ctx.beginPath(); ctx.arc(len * 0.42, -7, 6.5, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(len * 0.42, 8, 6.5, 0, 7); ctx.fill();
+      ctx.fillStyle = '#ff8a80';
+      ctx.beginPath(); ctx.arc(len * 0.44, -8, 2.4, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(len * 0.44, 7, 2.4, 0, 7); ctx.fill();
+      // đầu + mắt + râu dài
+      ctx.fillStyle = '#d32f2f'; ctx.beginPath(); ctx.arc(len * 0.3, 0, 5, 0, 7); ctx.fill();
+      eye(len * 0.34, -1.5, 1.8);
+      ctx.strokeStyle = '#ffccbc'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(len * 0.38, -3); ctx.lineTo(len * 0.68, -13); ctx.stroke();
+      // đuôi quạt
+      ctx.fillStyle = '#7f0000';
+      ctx.beginPath(); ctx.moveTo(-len * 0.3, 4); ctx.lineTo(-len * 0.5, -3); ctx.lineTo(-len * 0.47, 10); ctx.closePath(); ctx.fill();
+      break;
+    }
+    case 'cavang': { // cá vàng: cam + đuôi voan đôi chảy
+      ctx.fillStyle = '#ffb74d';
+      ctx.beginPath(); ctx.moveTo(-len * 0.3, 0); ctx.lineTo(-len * 0.62, -9 + Math.sin(t * 6) * 2); ctx.lineTo(-len * 0.5, 0); ctx.lineTo(-len * 0.62, 9 + Math.cos(t * 6) * 2); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#e65100'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(-len * 0.3, 0); ctx.lineTo(-len * 0.6, -8); ctx.stroke();
+      fishBody(ctx, len * 0.9, 15, '#ff9800', '#fff3e0');
+      ctx.fillStyle = '#e65100';
+      ctx.beginPath(); ctx.moveTo(-2, -7); ctx.lineTo(4, -13); ctx.lineTo(7, -6); ctx.closePath(); ctx.fill();
+      // bướu đầu cá vàng ranchu
+      ctx.fillStyle = '#ffcc80'; ctx.beginPath(); ctx.arc(len * 0.28, -6, 3.4, 0, 7); ctx.fill();
+      eye(len * 0.32, -1, 2.6);
       break;
     }
     default: { // cá thường + loài mới: nhuộm màu theo id để phân biệt trong ao

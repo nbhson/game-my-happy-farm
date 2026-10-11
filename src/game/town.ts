@@ -40,6 +40,8 @@ export function marketSlotPos(i: number): { x: number; y: number } {
 }
 // Nhà văn hóa: góc đông-bắc, đối xứng quán cafe (tổ chức đám cưới)
 export const CULTURE_HALL = { x: 1070, y: 80, w: 300, h: 200 };
+// Lò rèn: phía tây, giữa quán cafe và vườn hoa (nâng cấp cánh)
+export const TOWN_SMITH = { x: 180, y: 480, w: 240, h: 170 };
 // Bảng tin làng: cạnh cổng nam quảng trường, trên sân khấu
 export const BOARD_SIGN = { x: 980, y: 940 };
 
@@ -65,7 +67,7 @@ export function isTownBlocked(x: number, y: number): boolean {
   // đài phun nước (trừ vành ngoài để đứng ngắm)
   if (Math.hypot(x - FOUNTAIN.x, y - FOUNTAIN.y) < FOUNTAIN.r - 6) return true;
   // nhà cửa còn lại (gara/casino/shop đã chuyển sang khu mua sắm)
-  for (const b of [TOWN_HALL, TOWN_CAFE, TOWN_HOUSE1, TOWN_HOUSE2, CULTURE_HALL]) {
+  for (const b of [TOWN_HALL, TOWN_CAFE, TOWN_HOUSE1, TOWN_HOUSE2, CULTURE_HALL, TOWN_SMITH]) {
     if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) return true;
   }
   // bảng tin làng (cột gỗ nhỏ)
@@ -95,6 +97,7 @@ export const TOWN_PROPS: { id: string; x: number; y: number; label: string; hint
   { id: 'house2', x: TOWN_HOUSE2.x + TOWN_HOUSE2.w / 2, y: TOWN_HOUSE2.y + TOWN_HOUSE2.h + 30, label: 'Nhà chú Tám', hint: 'Nhà chú Tám: ông trùm chế đồ tái chế, vào xem thử!' },
   { id: 'market', x: NIGHT_MARKET.x + NIGHT_MARKET.w / 2, y: NIGHT_MARKET.y + NIGHT_MARKET.h + 20, label: 'Chợ đêm', hint: 'Chợ đêm họp tối thứ 7 – chủ nhật (18h–24h): dựng sạp bán nông sản giá tự đặt!' },
   { id: 'culture', x: CULTURE_HALL.x + CULTURE_HALL.w / 2, y: CULTURE_HALL.y + CULTURE_HALL.h + 30, label: 'Nhà văn hóa', hint: 'Nhà văn hóa: đứng gần người ấy, cùng bấm 💍 để tổ chức đám cưới!' },
+  { id: 'smith', x: TOWN_SMITH.x + TOWN_SMITH.w / 2, y: TOWN_SMITH.y + TOWN_SMITH.h + 30, label: 'Lò rèn', hint: 'Lò rèn của bác Thợ Rèn: nâng cấp cánh lên Lv5!' },
   { id: 'board', x: BOARD_SIGN.x, y: BOARD_SIGN.y + 34, label: 'Bảng tin làng', hint: 'Bảng tin làng: ghim lời nhắn, rao bán, tìm đồ — thả tim cho tin hay!' },
 ];
 

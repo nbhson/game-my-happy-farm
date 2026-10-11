@@ -144,6 +144,10 @@ export function doInteractWith(t: InteractTarget | null | undefined) {
       s.setModal('lottery');
       return;
     }
+    if (p?.id === 'smith') {
+      s.setModal('smith');
+      return;
+    }
     if (p?.id === 'hall' || p?.id === 'cafe' || p?.id === 'stage' || p?.id === 'house1' || p?.id === 'house2') {
       goToInterior(p.id);
       return;
@@ -718,7 +722,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
         // trong nhà: phòng riêng, không vẽ khách + không câu cá
         renderInterior(ctx, view.current.w, view.current.h, cam.current, st.interiorId, {
           player: { x: playerRef.x, y: playerRef.y, dir: playerRef.dir, moving: playerRef.moving, name: st.name },
-          avatar: st.avatar, outfit: st.outfit,
+          avatar: st.avatar, outfit: st.outfit, wingLv: st.wingLv,
           carColor: st.activeCar ? CARS[st.activeCar]?.color ?? null : null,
           carKind: st.activeCar ? CARS[st.activeCar]?.kind ?? null : null,
           carId: st.activeCar ?? null,
@@ -734,7 +738,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
           selfEmote: village.selfEmote || undefined,
           selfEmoteAt: village.selfEmoteAt || undefined,
           kemPos, petFx: st.petFx,
-          outfit: st.outfit,
+          outfit: st.outfit, wingLv: st.wingLv,
           carColor: st.activeCar ? CARS[st.activeCar]?.color ?? null : null,
           carKind: st.activeCar ? CARS[st.activeCar]?.kind ?? null : null,
           carId: st.activeCar ?? null,
@@ -782,7 +786,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
           selfEmote: village.selfEmote || undefined,
           selfEmoteAt: village.selfEmoteAt || undefined,
           kemPos, petFx: st.petFx,
-          outfit: st.outfit,
+          outfit: st.outfit, wingLv: st.wingLv,
           carColor: st.activeCar ? CARS[st.activeCar]?.color ?? null : null,
           carKind: st.activeCar ? CARS[st.activeCar]?.kind ?? null : null,
           carId: st.activeCar ?? null,
@@ -809,7 +813,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
           kemPos,
           sit: fs ? { x: fs.x, y: fs.y, bx: fs.bx, by: fs.by, bite: biting, combo: st.biteCombo, progress: st.biteProgress, fishId: st.biteCatchId } : null,
           catchPop: st.catchPop,
-          outfit: st.outfit,
+          outfit: st.outfit, wingLv: st.wingLv,
           carColor: st.activeCar ? CARS[st.activeCar]?.color ?? null : null,
           carKind: st.activeCar ? CARS[st.activeCar]?.kind ?? null : null,
           carId: st.activeCar ?? null,

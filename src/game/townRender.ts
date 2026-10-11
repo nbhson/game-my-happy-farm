@@ -5,7 +5,7 @@ import type { GraphicsQuality, WeatherKind } from './types';
 import {
   BENCH_SPOTS, BOARD_SIGN, CULTURE_HALL, FARM_GATE, FOUNTAIN, LAMP_SPOTS, MALL_GATE,
   NIGHT_MARKET, PLAZA, SAKURA_SPOTS,
-  TOWN, TOWN_CAFE, TOWN_GARDEN, TOWN_HALL, TOWN_HOUSE1, TOWN_HOUSE2,
+  TOWN, TOWN_CAFE, TOWN_GARDEN, TOWN_HALL, TOWN_HOUSE1, TOWN_HOUSE2, TOWN_SMITH,
   TOWN_STAGE, farmGateCenter, mallGateCenter, marketSlotPos,
 } from './town';
 import { computePairOffsets, drawActionFx, drawBikeSide, drawEggThrow, drawKem, drawKiki, drawMimi, drawMotoSide, drawPairFx, drawParkedCar, drawPlayerDetailed, type PairActor, type VisitorDraw } from './render';
@@ -26,6 +26,8 @@ export interface TownRenderState {
   /** hiệu ứng vuốt ve pet (để Kem có tim + tay người ở thị trấn) */
   petFx?: { uid: number; at: number } | null;
   outfit?: Record<string, string>;
+  /** cấp cánh từng món (Lò rèn) — vẽ cánh đẹp dần theo Lv */
+  wingLv?: Record<string, number>;
   /** màu + loại + id xe đang lái (null = đi bộ) */
   carColor?: string | null;
   carKind?: string | null;
@@ -232,7 +234,7 @@ function drawTownBase(ctx: CanvasRenderingContext2D, cam: { x: number; y: number
     if (fy > 590 && fy < 700) continue;
     if (fx > 750 && fx < 850) continue;
     let inside = false;
-    for (const b of [TOWN_HALL, TOWN_CAFE, TOWN_HOUSE1, TOWN_HOUSE2, TOWN_STAGE, TOWN_GARDEN, MALL_GATE]) {
+    for (const b of [TOWN_HALL, TOWN_CAFE, TOWN_HOUSE1, TOWN_HOUSE2, TOWN_SMITH, TOWN_STAGE, TOWN_GARDEN, MALL_GATE]) {
       if (fx > b.x - 16 && fx < b.x + b.w + 16 && fy > b.y - 16 && fy < b.y + b.h + 16) inside = true;
     }
     if (inside) continue;
@@ -1876,7 +1878,7 @@ export function drawMapActors(ctx: CanvasRenderingContext2D, cam: { x: number; y
   {
     const X = s.player.x - cam.x + pairRes.offsets[0].dx, Y = s.player.y - cam.y + pairRes.offsets[0].dy;
     const shirt = shirtColorOf(s.outfit, SHIRTS[s.avatar % SHIRTS.length]);
-    drawPlayerDetailed(ctx, X, Y, s.player.dir, s.player.moving, shirt, s.player.name, t, s.outfit, s.carColor, s.carKind, s.carId, false);
+    drawPlayerDetailed(ctx, X, Y, s.player.dir, s.player.moving, shirt, s.player.name, t, s.outfit, s.carColor, s.carKind, s.carId, false, s.wingLv?.[s.outfit?.wing ?? ''] ?? 1);
     if (s.player.tx != null && s.player.ty != null) {
       ctx.fillStyle = '#ffeb3b';
       ctx.beginPath(); ctx.arc(s.player.tx - cam.x, s.player.ty - cam.y, 6 + Math.sin(t * 8) * 2, 0, 7); ctx.fill();
@@ -2213,6 +2215,43 @@ function drawBoardSign(ctx: CanvasRenderingContext2D, cam: { x: number; y: numbe
   txt(ctx, 'BẢNG TIN', X, Y - 94, 10, '#5d4037');
 }
 
+// ---------- sân lò rèn: đe + lửa + tia lửa bay ----------
+function drawSmithYard(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, t: number, night: boolean) {
+  const b = TOWN_SMITH;
+  const X = b.x + b.w / 2 - cam.x, Y = b.y + b.h - cam.y;
+  // lò lửa trước cửa: rực hơn về đêm
+  const gl = night ? 0.9 : 0.5;
+  ctx.fillStyle = `rgba(255,110,40,${0.25 * gl + 0.15})`;
+  ctx.beginPath(); ctx.ellipse(X + 52, Y - 14, 26, 12, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#3a3a44';
+  rr(ctx, X + 34, Y - 30, 36, 22, 4); ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = OUT; ctx.stroke();
+  ctx.fillStyle = `rgba(255,${140 + Math.round(40 * Math.sin(t * 6))},30,${0.6 + 0.4 * gl})`;
+  rr(ctx, X + 40, Y - 24, 24, 10, 3); ctx.fill();
+  // đe sắt
+  shadow(ctx, X - 52, Y - 2, 20, 5, 0.25);
+  ctx.fillStyle = '#5d5d6e';
+  rr(ctx, X - 58, Y - 22, 12, 18, 2); ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = OUT; ctx.stroke();
+  ctx.fillStyle = '#8d8d9e';
+  ctx.beginPath();
+  ctx.moveTo(X - 76, Y - 28); ctx.lineTo(X - 30, Y - 28); ctx.lineTo(X - 26, Y - 20); ctx.lineTo(X - 80, Y - 20);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // tia lửa bay
+  if (!TQ_LOW) {
+    for (let k = 0; k < 3; k++) {
+      const ph = (t * 0.9 + k * 0.33) % 1;
+      const sx = X + 52 + Math.sin(k * 2.4 + t * 3) * 10 * ph;
+      const sy = Y - 26 - ph * 34;
+      ctx.globalAlpha = (1 - ph) * 0.9;
+      ctx.fillStyle = '#ffd54f';
+      ctx.beginPath(); ctx.arc(sx, sy, 2, 0, 7); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+  txt(ctx, 'RÈN CÁNH', X, Y + 16, 10, '#ffccbc');
+}
+
 export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, cam: { x: number; y: number }, s: TownRenderState, t: number) {
   // cấp đồ họa áp dụng ngay cho cả frame thị trấn
   setTQ(s.quality ?? 'medium');
@@ -2228,6 +2267,8 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
   drawBuilding(ctx, cam, t, TOWN_CAFE, { id: 'cafe', roof: 'catear', wall: '#ffeef4', roofTop: '#ff9ebb', roofBot: '#c2185b', sign: 'CÀ PHÊ MÈO', noren: ['喫', '茶', '店'] }, night);
   drawBuilding(ctx, cam, t, TOWN_HOUSE1, { id: 'house', roof: 'thatch', wall: '#ffe9c4', roofTop: '#f0d48a', roofBot: '#9a7030', sign: 'NHÀ RƠM', chimney: true }, night);
   drawBuilding(ctx, cam, t, TOWN_HOUSE2, { id: 'house', roof: 'lean', wall: '#e8f0f8', roofTop: '#90caf9', roofBot: '#1565c0', sign: 'NHÀ XANH', chimney: true }, night);
+  drawBuilding(ctx, cam, t, TOWN_SMITH, { id: 'house', roof: 'lean', wall: '#4a4a55', roofTop: '#ff7043', roofBot: '#7f0000', sign: '🔨 LÒ RÈN', chimney: true }, night);
+  drawSmithYard(ctx, cam, t, night);
   drawStage(ctx, cam, t, night);
   drawFarmGate(ctx, cam, t);
   // lối đá mới lên Khu mua sắm & giải trí (góc đông-bắc) + cổng vòm neon

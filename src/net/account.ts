@@ -27,6 +27,7 @@ export interface AccountData {
   redeemedCodes?: string[];
   outfit?: Record<string, string>;
   ownedOutfits?: string[];
+  wingLv?: Record<string, number>;
   ownedCars?: string[];
   activeCar?: string | null;
   quality?: GraphicsQuality;
@@ -152,6 +153,7 @@ export function exportAccount(): AccountData {
     daily: g.daily, junkAt: g.junkAt,
     redeemedCodes: g.redeemedCodes,
     outfit: g.outfit, ownedOutfits: g.ownedOutfits,
+    wingLv: g.wingLv,
     ownedCars: g.ownedCars, activeCar: g.activeCar,
     quality: g.quality, autoQuality: g.autoQuality, resMode: g.resMode, viewH: g.viewH, kem: g.kem,
     stageColor: g.stageColor,

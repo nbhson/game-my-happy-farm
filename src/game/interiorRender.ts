@@ -11,6 +11,8 @@ interface RenderOpts {
   player: InteriorPlayer;
   avatar: number;
   outfit?: Record<string, string>;
+  /** cấp cánh từng món (Lò rèn) */
+  wingLv?: Record<string, number>;
   /** xe đang lái (gara cho lái xe vào trong) */
   carColor?: string | null;
   carKind?: string | null;
@@ -1591,7 +1593,7 @@ export function renderInterior(
         ctx.fillStyle = 'rgba(210,190,160,.55)';
         ell(ctx, X0 + o.player.x - o.player.dir * 12, Y0 + o.player.y - 2 - p1 * 7, 5 * (1 - p1) + 2, 3);
       }
-      drawPlayerDetailed(ctx, X0 + o.player.x, Y0 + o.player.y, o.player.dir, o.player.moving, shirt, o.player.name, t, o.outfit, o.carColor, o.carKind, o.carId, false);
+      drawPlayerDetailed(ctx, X0 + o.player.x, Y0 + o.player.y, o.player.dir, o.player.moving, shirt, o.player.name, t, o.outfit, o.carColor, o.carKind, o.carId, false, o.wingLv?.[o.outfit?.wing ?? ''] ?? 1);
     },
   });
   layers.sort((a, b) => a.y - b.y).forEach((l) => l.fn());

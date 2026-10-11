@@ -44,7 +44,7 @@ function cropFor(slot: OutfitSlot): { scale: number; tyFrac: number } {
 }
 
 /** Mặc thử món đồ lên mannequin mặc định — thấy sao mua vậy */
-export function OutfitPreview({ slot, itemId, size = 76 }: { slot: OutfitSlot; itemId: string; size?: number }) {
+export function OutfitPreview({ slot, itemId, size = 76, level = 1 }: { slot: OutfitSlot; itemId: string; size?: number; level?: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const cv = ref.current;
@@ -54,8 +54,8 @@ export function OutfitPreview({ slot, itemId, size = 76 }: { slot: OutfitSlot; i
     ctx.translate(size / 2, size * tyFrac);
     ctx.scale(scale, scale);
     const outfit = { ...DEFAULT_OUTFIT, [slot]: itemId };
-    drawPlayerDetailed(ctx, 0, 0, 1, false, '#3f9e4d', '', 1.0, outfit, null, null, null, false);
-  }, [slot, itemId, size]);
+    drawPlayerDetailed(ctx, 0, 0, 1, false, '#3f9e4d', '', 1.0, outfit, null, null, null, false, slot === 'wing' ? level : 1);
+  }, [slot, itemId, size, level]);
   if (!OUTFITS[itemId]) return null;
   return <canvas ref={ref} className="block" />;
 }
