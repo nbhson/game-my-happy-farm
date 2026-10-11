@@ -4,13 +4,14 @@ import { useGame } from '../game/store';
 import type { GraphicsQuality, ResMode } from '../game/types';
 
 const QUALITY_META: { id: GraphicsQuality; name: string; icon: string; desc: string }[] = [
+  { id: 'ultra', name: 'Ultra điện ảnh', icon: '💎', desc: 'Khác biệt rõ nhất: tia nắng thể tích, lens flare, bóng mây trôi, bụi nắng, cánh hoa rơi, chim bay, mưa tóe + chớp, tuyết sâu, sao băng, đom đóm quầng sáng, vignette + grain phim. DPR tới 2x — chỉ máy khỏe' },
   { id: 'high', name: 'Cao', icon: '✨', desc: 'Đủ hiệu ứng: bóng, tia lửa, mây, bướm, đom đóm, quầng đèn, mưa tuyết dày. DPR tới 1.5x' },
   { id: 'medium', name: 'Trung bình', icon: '🌤️', desc: 'Tia lửa thưa 1/2, bớt mây/bướm/đom đóm/mưa tuyết; giữ bóng + quầng đèn. DPR tới 1.25x' },
   { id: 'low', name: 'Thấp', icon: '🚀', desc: 'Nền phẳng, cỏ gọn, bỏ tia lửa/bóng/mây/quầng/aura/cột sáng — nhẹ nhất cho máy yếu. DPR khóa 1x' },
 ];
 
 const RES_META: { id: ResMode; name: string; icon: string; desc: string }[] = [
-  { id: 'auto', name: 'Tự động', icon: '🤖', desc: 'Theo cấp đồ họa: Thấp 60%, TB 85%, Cao 100%' },
+  { id: 'auto', name: 'Tự động', icon: '🤖', desc: 'Theo cấp đồ họa: Thấp 60%, TB 85%, Cao/Ultra 100%' },
   { id: 'full', name: 'Chuẩn 100%', icon: '💎', desc: 'Nét nhất, nặng nhất' },
   { id: 'med', name: 'Nhẹ 75%', icon: '🌤️', desc: 'Nhẹ ~40% điểm ảnh, vẫn rõ' },
   { id: 'low', name: 'Siêu nhẹ 50%', icon: '🚀', desc: 'Chỉ 1/4 điểm ảnh — máy yếu nhất' },
@@ -40,7 +41,7 @@ export default function SettingsModal() {
           <span className="flex-1">
             <span className="font-extrabold text-sm flex items-center gap-1.5">
               Tự động (khuyên dùng)
-              {autoQuality && <span className="text-[10px] bg-green-600 text-white rounded-full px-2 py-0.5">ĐANG DÙNG · {autoLevel === 'low' ? 'Thấp' : autoLevel === 'medium' ? 'TB' : 'Cao'}</span>}
+              {autoQuality && <span className="text-[10px] bg-green-600 text-white rounded-full px-2 py-0.5">ĐANG DÙNG · {autoLevel === 'low' ? 'Thấp' : autoLevel === 'medium' ? 'TB' : autoLevel === 'ultra' ? 'Ultra' : 'Cao'}</span>}
             </span>
             <span className="text-[11px] text-stone-500 block">FPS {'<'} 42 thì tự hạ 1 cấp, {' >'} 57 bền 8s thì tự tăng — khỏi chỉnh tay</span>
           </span>

@@ -2,6 +2,7 @@
 // Tái dùng drawPlayerDetailed (người chơi) + depthScale để cùng chất với farm/town.
 import { INTERIORS, SLOT_SYMBOLS, type InteriorDef } from './interiors';
 import { drawBikeSide, drawCarSide, drawMotoSide, drawPlayerDetailed } from './render';
+import { drawUltraPost, isUltra } from './ultra';
 import { CARS, SHIRTS, shirtColorOf } from './data';
 
 export interface InteriorPlayer {
@@ -20,6 +21,8 @@ interface RenderOpts {
   stageColor: string;
   /** đêm hay ngày (cửa sổ đổi màu kính theo) */
   night: boolean;
+  /** cấp đồ họa (ultra → phủ bụi đèn + vignette điện ảnh trong nhà) */
+  quality?: string;
 }
 
 // ---------- helpers ----------
@@ -1619,4 +1622,8 @@ export function renderInterior(
   const vg = ctx.createRadialGradient(vw / 2, vh / 2, Math.min(vw, vh) * 0.42, vw / 2, vh / 2, Math.max(vw, vh) * 0.75);
   vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(20,8,0,.34)');
   ctx.fillStyle = vg; ctx.fillRect(0, 0, vw, vh);
+  // ULTRA trong nhà: bụi bay trong quầng đèn + vignette điện ảnh + grain
+  if (isUltra(o.quality)) {
+    drawUltraPost(ctx, vw, vh, { x: 0, y: 0 }, t, { dayTime: o.night ? 0.05 : 0.5, night: o.night, indoor: true });
+  }
 }

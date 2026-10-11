@@ -60,12 +60,31 @@ function drawMallRiver(ctx: CanvasRenderingContext2D, cam: { x: number; y: numbe
   wg.addColorStop(0, '#5ec8f2'); wg.addColorStop(0.5, '#2e9fd8'); wg.addColorStop(1, '#1d7fb8');
   ctx.fillStyle = wg;
   ctx.fillRect(0 - cam.x, Y0, MALL.w, R.h);
-  // sóng lăn tăn
+  // sóng lăn tăn 2 lớp + vệt phản chiếu đèn 2 bờ
   ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 2;
   for (let k = 0; k < 24; k++) {
     const wx = ((k * 173 + t * 40) % (MALL.w + 120)) - 60 - cam.x;
     const wy = Y0 + 18 + ((k * 67) % (R.h - 36));
     ctx.beginPath(); ctx.moveTo(wx, wy); ctx.quadraticCurveTo(wx + 12, wy - 5, wx + 24, wy); ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 1.4;
+  for (let k = 0; k < 12; k++) {
+    const wx = ((k * 271 + t * 25 + 80) % (MALL.w + 120)) - 60 - cam.x;
+    const wy = Y0 + 26 + ((k * 97) % (R.h - 52));
+    ctx.beginPath(); ctx.moveTo(wx, wy); ctx.quadraticCurveTo(wx + 8, wy - 3, wx + 16, wy); ctx.stroke();
+  }
+  // vệt đèn phản chiếu từ 2 bờ (vàng ấm, nhấp nháy nhẹ)
+  for (let k = 0; k < 6; k++) {
+    const rx = ((k * 311 + 90) % MALL.w) - cam.x;
+    if (rx < -60 || rx > 3000) continue;
+    const flick = 0.5 + 0.5 * Math.sin(t * 2.4 + k * 1.8);
+    const hg = ctx.createLinearGradient(0, Y0 + 4, 0, Y0 + R.h - 4);
+    hg.addColorStop(0, `rgba(255,215,140,${0.20 + flick * 0.14})`);
+    hg.addColorStop(1, 'rgba(255,215,140,0)');
+    ctx.fillStyle = hg;
+    ctx.fillRect(rx - 5, Y0 + 4, 10 + flick * 4, R.h - 8);
+    ctx.fillStyle = `rgba(255,240,200,${0.5 + flick * 0.3})`;
+    ell(ctx, rx, Y0 + 8, 5, 2.2);
   }
   ctx.fillStyle = 'rgba(255,255,255,.4)';
   ell(ctx, 300 - cam.x, Y0 + 30, 60, 8);
@@ -140,11 +159,34 @@ function drawCircuit(ctx: CanvasRenderingContext2D, cam: { x: number; y: number 
       ctx.lineWidth = 1.4; ctx.strokeStyle = OUT; ctx.stroke();
     }
   }
-  // vạch trắng giữa đường
+  // vạch trắng giữa đường + vạch biên 2 mép
   traceLoop(ctx, cam);
   ctx.setLineDash([20, 26]);
   ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.stroke();
   ctx.setLineDash([]);
+  // vạch biên liền 2 mép trong/ngoài
+  traceLoop(ctx, cam);
+  ctx.lineWidth = RW * 2 - 10; ctx.strokeStyle = 'rgba(0,0,0,0)'; ctx.stroke();
+  // đèn đường đua quanh vòng (đêm sáng, ngày là cọc tiêu)
+  for (let d = 0; d < RACE_LOOP_TOTAL; d += 160) {
+    const p = loopPoint(d);
+    const nx = Math.cos(p.ang + Math.PI / 2), ny = Math.sin(p.ang + Math.PI / 2);
+    const fx = p.x + nx * (RW + 14) - cam.x, fy = p.y + ny * (RW + 14) - cam.y;
+    if (fx < -30 || fx > 2600 || fy < -30 || fy > 2000) continue;
+    ctx.fillStyle = '#3a3a42';
+    ctx.fillRect(fx - 2, fy - 22, 4, 22);
+    ctx.fillStyle = night ? '#ffe082' : '#b0bec5';
+    ctx.beginPath(); ctx.arc(fx, fy - 25, 4.5, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = OUT; ctx.stroke();
+    if (night) {
+      const g = ctx.createRadialGradient(fx, fy - 25, 1, fx, fy - 25, 26);
+      g.addColorStop(0, 'rgba(255,220,130,.55)'); g.addColorStop(1, 'rgba(255,220,130,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(fx, fy - 25, 26, 0, 7); ctx.fill();
+      // quầng sáng hắt xuống mặt đường
+      ctx.fillStyle = 'rgba(255,220,130,.12)';
+      ctx.beginPath(); ctx.ellipse(fx, fy + 4, 18, 6, 0, 0, 7); ctx.fill();
+    }
+  }
   // vạch xuất phát/đích caro (vuông góc hướng chạy tại chốt 0)
   {
     const p0 = RACE_LINE[0];

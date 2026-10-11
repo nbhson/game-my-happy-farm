@@ -418,7 +418,7 @@ export const useGame = create<GameState>()(
             })(),
             ownedCars: Array.isArray(data.ownedCars) ? data.ownedCars.filter((id) => !!CARS[id]) : [],
             activeCar: data.activeCar && CARS[data.activeCar] && (data.ownedCars ?? []).includes(data.activeCar) ? data.activeCar : null,
-            quality: data.quality === 'low' || data.quality === 'medium' ? data.quality : 'high',
+            quality: data.quality === 'low' || data.quality === 'medium' || data.quality === 'ultra' ? data.quality : 'high',
             autoQuality: data.autoQuality !== false,
             autoLevel: data.quality === 'low' ? 'low' : 'medium',
             resMode: data.resMode === 'full' || data.resMode === 'med' || data.resMode === 'low' ? data.resMode : 'auto',
@@ -1189,7 +1189,7 @@ export const useGame = create<GameState>()(
         // chọn tay = tắt Auto để giữ đúng ý người chơi
         set({ quality: q, autoQuality: false });
         sfx.click();
-        get().toast(q === 'high' ? 'Đồ họa: Cao (lung linh nhất)' : q === 'medium' ? 'Đồ họa: Trung bình' : 'Đồ họa: Thấp (mượt nhất)');
+        get().toast(q === 'ultra' ? 'Đồ họa: Ultra điện ảnh 💎 (máy khỏe mới mượt)' : q === 'high' ? 'Đồ họa: Cao (lung linh)' : q === 'medium' ? 'Đồ họa: Trung bình' : 'Đồ họa: Thấp (mượt nhất)');
       },
       setAutoQuality: (v) => {
         set({ autoQuality: v });

@@ -62,10 +62,13 @@ function sameTarget(a: InteractTarget | null, b: InteractTarget | null): boolean
     && (a.propId ?? '') === (b.propId ?? '') && a.label === b.label;
 }
 
-/** DPR theo cấp đồ họa hiệu dụng: Thấp khóa 1x, TB tối đa 1.25x, Cao tối đa 1.5x */
+/** DPR theo cấp đồ họa hiệu dụng: Thấp khóa 1x, TB tối đa 1.25x, Cao tối đa 1.5x, Ultra tới 2x */
 export function dprFor(q: string): number {
   const dpr = window.devicePixelRatio || 1;
-  return q === 'low' ? 1 : q === 'medium' ? Math.min(1.25, dpr) : Math.min(1.5, dpr);
+  if (q === 'low') return 1;
+  if (q === 'medium') return Math.min(1.25, dpr);
+  if (q === 'ultra') return Math.min(2, dpr);
+  return Math.min(1.5, dpr);
 }
 
 /** Cấp hiệu dụng = Auto ? autoLevel : quality (tay chọn) */
@@ -74,7 +77,7 @@ export function effQuality(): string {
   return s.autoQuality ? s.autoLevel : s.quality;
 }
 
-/** Tỉ lệ điểm ảnh render thêm sau DPR: auto = low 0.6 / medium 0.85 / high 1 */
+/** Tỉ lệ điểm ảnh render thêm sau DPR: auto = low 0.6 / medium 0.85 / high 1 / ultra 1 */
 export function resScaleFor(mode: string, effQ: string): number {
   if (mode === 'low') return 0.5;
   if (mode === 'med') return 0.75;
@@ -411,7 +414,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
       const t = now / 1000;
       const st = useGame.getState();
       const nowMs = Date.now();
-      const effQ = (st.autoQuality ? st.autoLevel : st.quality) as 'low' | 'medium' | 'high';
+      const effQ = (st.autoQuality ? st.autoLevel : st.quality) as 'low' | 'medium' | 'high' | 'ultra';
       // --- đo FPS + tự chỉnh cấp (chỉ khi bật Auto) ---
       acc += dt; n++;
       if (acc >= 1) {
@@ -422,7 +425,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
           perfRef.current({ fps: Math.round(fps), q: effQ });
         }
         if (st.autoQuality) {
-          const order: ('low' | 'medium' | 'high')[] = ['low', 'medium', 'high'];
+          const order: ('low' | 'medium' | 'high' | 'ultra')[] = ['low', 'medium', 'high', 'ultra'];
           const idx = order.indexOf(st.autoLevel);
           if (fps < 42 && idx > 0 && nowMs - lastAdj > 3000) {
             st.setAutoLevel(order[idx - 1]);
@@ -728,6 +731,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
           carId: st.activeCar ?? null,
           stageColor: st.stageColor,
           night: st.dayTime < 0.2 || st.dayTime > 0.8,
+          quality: effQ,
         }, t);
       } else if (st.scene === 'town') {
         renderTown(ctx, view.current.w, view.current.h, cam.current, {
@@ -927,7 +931,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
           bottom-2 left bị joystick đè (mobile), bottom-2 right bị nút E đè (mobile),
           bottom-center thì canvas tràn là bị thanh chat đè mất */}
       <div className={`absolute left-1/2 -translate-x-1/2 z-[6] pointer-events-none select-none rounded-md border-2 border-black/60 bg-black/45 px-1.5 py-0.5 text-[10px] font-bold text-white/90 whitespace-nowrap ${visiting ? 'top-11 md:top-12' : 'top-2'}`}>
-        {perf.fps > 0 ? `${perf.fps}fps · ` : ''}{perf.q === 'low' ? 'Thấp' : perf.q === 'medium' ? 'TB' : 'Cao'}{autoQuality ? ' · Auto' : ''}
+        {perf.fps > 0 ? `${perf.fps}fps · ` : ''}{perf.q === 'low' ? 'Thấp' : perf.q === 'medium' ? 'TB' : perf.q === 'ultra' ? 'Ultra' : 'Cao'}{autoQuality ? ' · Auto' : ''}
       </div>
       <div className="absolute right-3 bottom-3 flex gap-2 md:hidden" style={{ marginBottom: 'env(safe-area-inset-bottom)' }}>
         <button

@@ -1,8 +1,8 @@
 // ===== Core domain types — dễ mở rộng thêm cây/cá/vật nuôi mới =====
 export type PlotState = 'grass' | 'soil' | 'growing' | 'ready';
 
-/** Cấp đồ họa: cao (đủ hiệu ứng) / trung bình / thấp (máy yếu) */
-export type GraphicsQuality = 'high' | 'medium' | 'low';
+/** Cấp đồ họa: ultra (điện ảnh) / cao (đủ hiệu ứng) / trung bình / thấp (máy yếu) */
+export type GraphicsQuality = 'ultra' | 'high' | 'medium' | 'low';
 
 /** Độ phân giải render: auto (theo cấp đồ họa) / full 100% / balanced 75% / potato 50% */
 export type ResMode = 'auto' | 'full' | 'med' | 'low';

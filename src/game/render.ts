@@ -9,6 +9,7 @@ import type { FishIconId } from './icons';
 import { BARN, COOP, FARM, PEN_MB, PIERS, POND, RIVER, RIVER_WATER_Y, ROAD_H, ROAD_V, SHOPD, TILE, TOWN_GATE, WORLD, plotPos, roadHCenter, roadVCenter, townGateCenter } from './world';
 import { animalPos, fishPos, KEM_UID, PETS, petPos } from './systems';
 import { drawBasket, drawChickenHead, drawCowHead, drawCropGeneric, drawDrop, drawEnvelope, drawExclaimBadge, drawFeedBowl, drawFish, drawHoeMini, drawLock, drawMoon, drawPumpkin, drawSeedDot, drawSleepZ, drawSparkle, drawSprout, drawStar, drawSun, drawTreeFruit, setFxLevel } from './icons';
+import { drawUltraPost, isUltra } from './ultra';
 
 export interface VisitorDraw {
   x: number; y: number; dir: number; moving: boolean;
@@ -59,6 +60,8 @@ export interface RenderState {
 // ===== Cấp đồ họa: renderWorld đặt mỗi frame, các hàm vẽ đọc để giảm tải =====
 let Q_LOW = false;
 let Q_MED = false;
+/** ultra: giữ full hiệu ứng high + phủ thêm lớp điện ảnh (ultra.ts) */
+let Q_ULTRA = false;
 
 // ---- 2.5D kiểu Hay Day: scale nhẹ theo chiều sâu + trời xa ----
 export function depthScale(wy: number): number {
@@ -517,7 +520,7 @@ function drawPlotSoil(ctx: CanvasRenderingContext2D, X: number, Y: number, w: nu
     rr(ctx, X - w / 2 + 5, ry, w - 10, 2.6, 1.3);
     ctx.fillStyle = watered ? 'rgba(140,200,255,.4)' : 'rgba(255,235,200,.4)'; ctx.fill();
   }
-  // cục đất anime có viền
+  // cục đất HD: viền + gloss + vụn nhỏ
   for (let k = 0; k < 5; k++) {
     const hsh = hash2(idx * 13, k * 31);
     const px = X - w / 2 + 8 + hsh * (w - 16);
@@ -525,6 +528,18 @@ function drawPlotSoil(ctx: CanvasRenderingContext2D, X: number, Y: number, w: nu
     ctx.fillStyle = watered ? '#2e1c0c' : '#b08968';
     ctx.beginPath(); ctx.ellipse(px, py, 2.6, 1.9, 0, 0, 7); ctx.fill();
     ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(60,35,10,.6)'; ctx.stroke();
+    ctx.fillStyle = watered ? 'rgba(150,200,255,.5)' : 'rgba(255,235,200,.55)';
+    ctx.beginPath(); ctx.arc(px - 0.8, py - 0.7, 0.7, 0, 7); ctx.fill();
+    if (k < 2) {
+      ctx.fillStyle = watered ? '#241408' : '#8a5f3a';
+      ctx.beginPath(); ctx.arc(px + 5, py + 3, 1.2, 0, 7); ctx.fill();
+    }
+  }
+  // gờ sáng trên từng rãnh (đất có khối) + rễ con
+  for (let r = 0; r < 4; r++) {
+    const ry = Y - h / 2 + 7 + r * ((h - 12) / 4);
+    ctx.fillStyle = watered ? 'rgba(170,220,255,.28)' : 'rgba(255,240,210,.30)';
+    rr(ctx, X - w / 2 + 7, ry, w - 14, 1.8, 0.9); ctx.fill();
   }
   ctx.restore();
   if (watered) {
@@ -732,6 +747,9 @@ function drawCropPlantInner(ctx: CanvasRenderingContext2D, cx: number, baseY: nu
     ctx.strokeStyle = 'rgba(35,70,25,.9)'; ctx.lineWidth = w + 2.2 + (stage === 4 ? 1.4 : 0);
     ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(mx, my, ex, ey); ctx.stroke();
     ctx.strokeStyle = col; ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(mx, my, ex, ey); ctx.stroke();
+    // gân giữa + mảng sáng mặt trên lá
+    ctx.strokeStyle = 'rgba(20,60,20,.55)'; ctx.lineWidth = Math.max(1, w * 0.22);
     ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(mx, my, ex, ey); ctx.stroke();
     ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = Math.max(1, w * 0.3);
     ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(mx, my, (x + ex) / 2, (y + ey) / 2); ctx.stroke();
@@ -1426,7 +1444,7 @@ function animeRR(ctx: CanvasRenderingContext2D, x: number, y: number, w: number,
   ctx.fillStyle = fill; ctx.fill();
   ctx.lineWidth = ow; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
 }
-/** Mái tam giác bo: đỉnh ridge, chân eave, diềm vỏ sò trắng */
+/** Mái tam giác bo HD: hàng ngói vảy + sống mái + diềm vỏ sò */
 function animeRoof(ctx: CanvasRenderingContext2D, cx: number, yRidge: number, yEave: number, halfW: number, over: number, cTop: string, cBot: string) {
   const g = ctx.createLinearGradient(0, yRidge, 0, yEave);
   g.addColorStop(0, cTop); g.addColorStop(1, cBot);
@@ -1438,6 +1456,25 @@ function animeRoof(ctx: CanvasRenderingContext2D, cx: number, yRidge: number, yE
   ctx.closePath();
   ctx.fillStyle = g; ctx.fill();
   ctx.lineWidth = 3.5; ctx.strokeStyle = ANIME_OUT; ctx.lineJoin = 'round'; ctx.stroke();
+  // hàng ngói vảy cá theo mái (2 hàng, cong xuống)
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx - halfW - over, yEave);
+  ctx.lineTo(cx - 13, yRidge);
+  ctx.lineTo(cx + 13, yRidge);
+  ctx.lineTo(cx + halfW + over, yEave);
+  ctx.closePath(); ctx.clip();
+  ctx.strokeStyle = 'rgba(120,50,10,.35)'; ctx.lineWidth = 1.8;
+  for (let r = 1; r <= 2; r++) {
+    const yy = yRidge + ((yEave - yRidge) * r) / 3;
+    const spread = (halfW + over - 13) * (r / 3) + 13;
+    for (let sx = cx - spread; sx < cx + spread; sx += 15) {
+      ctx.beginPath(); ctx.arc(sx, yy, 7, 0.15, Math.PI - 0.15); ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(255,255,255,.20)';
+    ctx.fillRect(cx - spread, yy - 7.5, spread * 2, 2);
+  }
+  ctx.restore();
   // vệt nắng trên mái trái
   ctx.fillStyle = 'rgba(255,255,255,.45)';
   ctx.beginPath();
@@ -1453,11 +1490,13 @@ function animeRoof(ctx: CanvasRenderingContext2D, cx: number, yRidge: number, yE
     ctx.fillStyle = '#fff8e1';
     ctx.beginPath(); ctx.arc(sx, yEave + 3, 6, 0, 7); ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ctx.beginPath(); ctx.arc(sx - 1.5, yEave + 1, 1.6, 0, 7); ctx.fill();
   }
   // chóp mái
   animeRR(ctx, cx - 15, yRidge - 10, 30, 10, 5, '#fff8e1', 2.5);
 }
-/** Cửa sổ tròn kính bóng, vẽ nội thất qua callback */
+/** Cửa sổ tròn HD: khung đôi + chấn song + kính 2 tia sáng, vẽ nội thất qua callback */
 function animeRoundWindow(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, inner: () => void) {
   ctx.fillStyle = 'rgba(0,0,0,.18)'; ell(ctx, cx + 1, cy + 2, r + 1, r * 0.9);
   ctx.fillStyle = '#fff8e1'; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fill();
@@ -1468,12 +1507,19 @@ function animeRoundWindow(ctx: CanvasRenderingContext2D, cx: number, cy: number,
   ctx.save();
   ctx.beginPath(); ctx.arc(cx, cy, r - 3, 0, 7); ctx.clip();
   inner();
+  // chấn song chữ thập mảnh
+  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(cx - r + 3, cy); ctx.lineTo(cx + r - 3, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy - r + 3); ctx.lineTo(cx, cy + r - 3); ctx.stroke();
   ctx.restore();
-  // tia sáng kính
+  ctx.fillStyle = '#fff8e1'; ctx.beginPath(); ctx.arc(cx, cy, r - 3, 0, 7); ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // 2 tia sáng kính
   ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.arc(cx, cy, r - 6.5, Math.PI * 1.02, Math.PI * 1.42); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.arc(cx, cy, r - 9.5, Math.PI * 1.05, Math.PI * 1.35); ctx.stroke();
 }
-/** Cửa vòm gỗ + núm tròn */
+/** Cửa vòm gỗ HD: panel nổi + bản lề + núm bóng */
 function animeArchDoor(ctx: CanvasRenderingContext2D, cx: number, baseY: number, w: number, h: number, wood = '#d99a55', dark = '#9a6530') {
   const r = w / 2, topY = baseY - h;
   ctx.fillStyle = 'rgba(0,0,0,.2)'; ell(ctx, cx + 1, baseY + 2, w / 2 + 2, 4);
@@ -1491,6 +1537,14 @@ function animeArchDoor(ctx: CanvasRenderingContext2D, cx: number, baseY: number,
   ctx.strokeStyle = 'rgba(90,50,20,.35)'; ctx.lineWidth = 1.6;
   ctx.beginPath(); ctx.moveTo(cx - w * 0.2, topY + 8); ctx.lineTo(cx - w * 0.2, baseY - 4); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(cx + w * 0.2, topY + 8); ctx.lineTo(cx + w * 0.2, baseY - 4); ctx.stroke();
+  // 2 panel nổi + bản lề sắt
+  ctx.strokeStyle = 'rgba(90,50,20,.45)'; ctx.lineWidth = 1.8;
+  rr(ctx, cx - w / 2 + 6, baseY - h + 12, w - 12, (h - 20) / 2, 6); ctx.stroke();
+  rr(ctx, cx - w / 2 + 6, baseY - h + 12 + (h - 20) / 2 + 3, w - 12, (h - 20) / 2 - 3, 6); ctx.stroke();
+  ctx.fillStyle = '#4e4e4e';
+  ctx.fillRect(cx - w / 2 - 1, baseY - h * 0.72, 5, 3); ctx.fillRect(cx - w / 2 - 1, baseY - h * 0.3, 5, 3);
+  ctx.fillStyle = 'rgba(255,255,255,.4)';
+  ctx.fillRect(cx - w / 2 - 1, baseY - h * 0.72, 5, 1); ctx.fillRect(cx - w / 2 - 1, baseY - h * 0.3, 5, 1);
   // núm cửa
   ctx.fillStyle = '#ffca28'; ctx.beginPath(); ctx.arc(cx + w / 2 - 7, baseY - h / 2, 3.6, 0, 7); ctx.fill();
   ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
@@ -1625,7 +1679,7 @@ function axGlint(ctx: CanvasRenderingContext2D, x: number, y: number, w: number,
   ctx.lineTo(x + w * 0.2, y + h);
   ctx.closePath(); ctx.fill();
 }
-/** Bụi cỏ anime 3 lá có viền */
+/** Bụi cỏ HD: 5 lá vát đậm/nhạt + bông cỏ + giọt sương (nhánh Thấp giữ 2 nét) */
 function axGrassTuft(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, t: number, seed: number, dark = false) {
   // Thấp: 2 nét đơn màu, bỏ viền + highlight (7 ops -> 2 ops mỗi bụi, ~300 bụi/frame)
   if (Q_LOW) {
@@ -1636,70 +1690,135 @@ function axGrassTuft(ctx: CanvasRenderingContext2D, x: number, y: number, s: num
     return;
   }
   const sway = Math.sin(t * 1.8 + seed * 1.7) * 1.8;
-  const blades: [number, number][] = [[-5, -9], [0, -12], [5, -8]];
+  const blades: [number, number, boolean][] = [[-6, -8, false], [-3, -12, true], [0, -13, false], [3, -11, true], [6, -7, false]];
   ctx.lineCap = 'round';
-  for (const [ox, hh] of blades) {
-    ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 4.4;
+  for (const [ox, hh, light] of blades) {
+    ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 4.6;
     ctx.beginPath(); ctx.moveTo(x + ox * s, y); ctx.lineTo(x + ox * s + sway, y + hh * s); ctx.stroke();
-    ctx.strokeStyle = dark ? '#3d7a2e' : '#5da93c'; ctx.lineWidth = 2.4;
+    ctx.strokeStyle = dark ? (light ? '#4d9240' : '#3d7a2e') : (light ? '#7ccf57' : '#5da93c'); ctx.lineWidth = 2.6;
     ctx.beginPath(); ctx.moveTo(x + ox * s, y); ctx.lineTo(x + ox * s + sway, y + hh * s); ctx.stroke();
   }
-  ctx.fillStyle = 'rgba(255,255,255,.35)';
-  ell(ctx, x + sway * 0.5, y - 10 * s, 1.6, 1);
+  // bông cỏ đung đưa trên ngọn cao nhất
+  const hx = x + sway, hy = y - 14 * s;
+  ctx.strokeStyle = ANIME_OUT; ctx.lineWidth = 2.6;
+  ctx.beginPath(); ctx.moveTo(x, y - 6 * s); ctx.lineTo(hx, hy); ctx.stroke();
+  ctx.fillStyle = '#e8dcc0';
+  ctx.beginPath(); ctx.ellipse(hx, hy - 1.5, 2.6 * s, 3.4 * s, sway * 0.05, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(90,60,25,.6)'; ctx.stroke();
+  // giọt sương lấp lánh (thưa để rẻ)
+  if ((seed & 3) === 0) {
+    const dx = x + 5 * s + sway * 0.5, dy = y - 7 * s;
+    ctx.fillStyle = 'rgba(190,235,255,.9)';
+    ctx.beginPath(); ctx.arc(dx, dy, 1.5, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(dx - 0.5, dy - 0.5, 0.6, 0, 7); ctx.fill();
+  }
 }
-/** Hoa anime 5 cánh có viền + nhụy */
+/** Hoa HD: 2 lớp cánh (ngoài đậm, trong nhạt) + nhị râu + 2 lá gân */
 function axFlower(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, petal: string, center = '#ffeb3b') {
   ctx.fillStyle = 'rgba(30,60,20,.25)'; ell(ctx, x + 1, y + 3, s * 0.7, s * 0.3);
   ctx.strokeStyle = '#2f6b2f'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(x, y + 2); ctx.lineTo(x, y + 9); ctx.stroke();
   ctx.fillStyle = '#3d8a3d';
-  ctx.beginPath(); ctx.ellipse(x - 3, y + 6, 3, 1.6, -0.5, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x - 3.5, y + 6, 3.4, 1.8, -0.5, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = '#4a9e4d';
+  ctx.beginPath(); ctx.ellipse(x + 3.5, y + 7, 3, 1.6, 0.5, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // lớp cánh ngoài (đậm hơn 1 tone)
   for (let p = 0; p < 5; p++) {
     const a = (p / 5) * Math.PI * 2 - Math.PI / 2;
-    const px = x + Math.cos(a) * s * 0.55, py = y + Math.sin(a) * s * 0.55;
+    const px = x + Math.cos(a) * s * 0.58, py = y + Math.sin(a) * s * 0.58;
     ctx.fillStyle = petal;
-    ctx.beginPath(); ctx.arc(px, py, s * 0.42, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(px, py, s * 0.44, 0, 7); ctx.fill();
     ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.beginPath(); ctx.arc(px - s * 0.12, py - s * 0.14, s * 0.13, 0, 7); ctx.fill();
+  }
+  // lớp cánh trong (nhạt, ôm nhụy)
+  for (let p = 0; p < 5; p++) {
+    const a = (p / 5) * Math.PI * 2 - Math.PI / 2 + 0.63;
+    const px = x + Math.cos(a) * s * 0.3, py = y + Math.sin(a) * s * 0.3;
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.beginPath(); ctx.arc(px, py, s * 0.24, 0, 7); ctx.fill();
   }
   ctx.fillStyle = center;
-  ctx.beginPath(); ctx.arc(x, y, s * 0.34, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, s * 0.32, 0, 7); ctx.fill();
   ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
-  ctx.fillStyle = 'rgba(255,255,255,.8)';
+  // râu nhị + chấm phấn
+  ctx.strokeStyle = 'rgba(120,70,10,.8)'; ctx.lineWidth = 1;
+  for (let p = 0; p < 3; p++) {
+    const a = -Math.PI / 2 + (p - 1) * 0.5;
+    ctx.beginPath(); ctx.moveTo(x, y - 1); ctx.lineTo(x + Math.cos(a) * s * 0.42, y + Math.sin(a) * s * 0.42); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x + Math.cos(a) * s * 0.46, y + Math.sin(a) * s * 0.46, 1.1, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(255,255,255,.9)';
   ctx.beginPath(); ctx.arc(x - 1, y - 1, s * 0.1, 0, 7); ctx.fill();
 }
-/** Đá anime bo tròn có viền + highlight */
+/** Đá HD: 2 tone + đốm rêu + vết nứt + highlight kép */
 function axStone(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, base = '#c3ced6') {
   axShadow(ctx, x + 1, y + ry * 0.8, rx * 0.9, ry * 0.4, 0.18);
   ctx.fillStyle = base;
   ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 7); ctx.fill();
   ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
-  ctx.fillStyle = 'rgba(255,255,255,.6)';
+  // mảng tối chân đá (khối)
+  ctx.fillStyle = 'rgba(60,80,100,.25)';
+  ctx.beginPath(); ctx.ellipse(x + rx * 0.15, y + ry * 0.45, rx * 0.7, ry * 0.4, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.65)';
   ctx.beginPath(); ctx.ellipse(x - rx * 0.3, y - ry * 0.35, rx * 0.32, ry * 0.28, -0.4, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.9)';
+  ctx.beginPath(); ctx.arc(x - rx * 0.38, y - ry * 0.42, Math.max(1, rx * 0.08), 0, 7); ctx.fill();
+  // đốm rêu + vết nứt
+  ctx.fillStyle = 'rgba(90,150,80,.5)';
+  ctx.beginPath(); ctx.arc(x + rx * 0.4, y + ry * 0.2, Math.max(1, rx * 0.1), 0, 7); ctx.fill();
+  ctx.strokeStyle = 'rgba(70,90,110,.5)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x - rx * 0.1, y - ry * 0.2); ctx.lineTo(x + rx * 0.15, y + ry * 0.1); ctx.stroke();
 }
-/** Nấm anime mũ đỏ chấm bi */
+/** Nấm HD: mũ 2 tone + vòng chân + phiến mang + đốm viền */
 function axMushroom(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
   axShadow(ctx, x, y + 1, s * 0.6, s * 0.2, 0.2);
+  // thân + vòng chân
   ctx.fillStyle = '#fff6e8';
   rr(ctx, x - s * 0.18, y - s * 0.7, s * 0.36, s * 0.75, s * 0.15); ctx.fill();
   ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.strokeStyle = 'rgba(190,160,120,.7)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(x - s * 0.18, y - s * 0.28); ctx.lineTo(x + s * 0.18, y - s * 0.28); ctx.stroke();
+  // phiến mang dưới mũ
+  ctx.fillStyle = '#e8d5b5';
+  ctx.beginPath(); ctx.ellipse(x, y - s * 0.62, s * 0.5, s * 0.12, 0, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // mũ 2 tone
   ctx.fillStyle = '#ff5b5b';
   ctx.beginPath(); ctx.arc(x, y - s * 0.65, s * 0.62, Math.PI, 0); ctx.fill();
   ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = 'rgba(180,30,30,.45)';
+  ctx.beginPath(); ctx.arc(x, y - s * 0.65, s * 0.62, Math.PI * 1.15, Math.PI * 1.85); ctx.fill();
   ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(x - s * 0.28, y - s * 0.95, s * 0.13, 0, 7); ctx.fill();
-  ctx.beginPath(); ctx.arc(x + s * 0.22, y - s * 1.05, s * 0.1, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(x - s * 0.28, y - s * 0.95, s * 0.14, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.beginPath(); ctx.arc(x + s * 0.22, y - s * 1.05, s * 0.11, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.beginPath(); ctx.arc(x + s * 0.02, y - s * 0.82, s * 0.08, 0, 7); ctx.fill();
   ctx.fillStyle = 'rgba(255,255,255,.7)';
   ell(ctx, x - s * 0.3, y - s * 1.05, s * 0.16, s * 0.08);
 }
-/** Mây anime xốp viền nâu nhạt */
+/** Mây HD: 2 tầng (xám nền sâu + trắng sáng) + viền bạc đón nắng */
 function axCloud(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, a = 0.95) {
   ctx.save(); ctx.globalAlpha = a;
   ctx.fillStyle = 'rgba(60,80,120,.15)'; ell(ctx, x + 2, y + 6, s * 1.5, s * 0.5);
+  // tầng xám lót sau cho có khối
+  ctx.fillStyle = '#d9e4f2';
+  for (const [ox, oy, pr] of [[-s * 0.7, s * 0.18, s * 0.6], [s * 0.2, s * 0.22, s * 0.72], [s * 0.95, s * 0.15, s * 0.5]] as [number, number, number][]) {
+    ctx.beginPath(); ctx.arc(x + ox, y + oy, pr, 0, 7); ctx.fill();
+  }
   const puffs: [number, number, number][] = [[-s, 0, s * 0.62], [-s * 0.3, -s * 0.35, s * 0.8], [s * 0.5, -s * 0.25, s * 0.7], [s * 1.05, 0, s * 0.55]];
   for (const [ox, oy, pr] of puffs) {
     ctx.fillStyle = '#ffffff';
     ctx.beginPath(); ctx.arc(x + ox, y + oy, pr, 0, 7); ctx.fill();
     ctx.lineWidth = 2.4; ctx.strokeStyle = 'rgba(90,110,150,.85)'; ctx.stroke();
+    // viền bạc trên đỉnh đón nắng
+    ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(x + ox, y + oy, pr - 1.5, Math.PI * 1.15, Math.PI * 1.75); ctx.stroke();
   }
   ctx.fillStyle = '#ffffff'; ctx.fillRect(x - s * 1.2, y - 2, s * 2.4, s * 0.62);
   ctx.fillStyle = 'rgba(180,220,255,.5)'; ell(ctx, x - s * 0.3, y + s * 0.3, s * 0.9, s * 0.28);
@@ -1990,8 +2109,44 @@ function drawPondDetailed(ctx: CanvasRenderingContext2D, cam: { x: number; y: nu
     ctx.globalAlpha = 0.4 + 0.22 * Math.sin(t * 2.4 + i);
     rr(ctx, wx, wy, len, 4, 2); ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fill();
   }
+  // dải nắng lấp lánh trên mặt ao (glitter lane xiên theo nắng)
+  if (!Q_LOW) {
+    ctx.save();
+    ctx.beginPath(); ctx.rect(X, Y, Wp, Hp); ctx.clip();
+    const laneX = X + Wp * 0.62 + Math.sin(t * 0.7) * 8;
+    const lane = ctx.createLinearGradient(laneX - 46, 0, laneX + 46, 0);
+    lane.addColorStop(0, 'rgba(255,250,220,0)');
+    lane.addColorStop(0.5, 'rgba(255,250,220,.20)');
+    lane.addColorStop(1, 'rgba(255,250,220,0)');
+    ctx.fillStyle = lane;
+    ctx.beginPath();
+    ctx.moveTo(laneX - 46, Y + Hp); ctx.lineTo(laneX + 10, Y); ctx.lineTo(laneX + 46, Y); ctx.lineTo(laneX - 10, Y + Hp);
+    ctx.closePath(); ctx.fill();
+    // hạt nắng nhảy múa trong dải sáng
+    for (let i = 0; i < 10; i++) {
+      const gx = laneX - 30 + hash2(i, 77) * 60;
+      const gy = Y + 8 + hash2(i, 79) * (Hp - 16);
+      const tw = Math.sin(t * 4 + i * 2.3);
+      if (tw < 0.1) continue;
+      ctx.fillStyle = `rgba(255,255,240,${(0.35 + tw * 0.45).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(gx, gy, 1.6, 0, 7); ctx.fill();
+      if (tw > 0.85) {
+        ctx.fillStyle = 'rgba(255,255,255,.8)';
+        ctx.fillRect(gx - 3.4, gy - 0.6, 6.8, 1.2);
+        ctx.fillRect(gx - 0.6, gy - 3.4, 1.2, 6.8);
+      }
+    }
+    ctx.restore();
+  }
   ctx.globalAlpha = 1;
-  // vòng lan tỏa chậm giữa ao
+  // viền bọt mép bờ (sóng vỗ nhẹ)
+  if (!Q_LOW) {
+    ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 2;
+    const ph = Math.sin(t * 2.2) * 2;
+    ctx.beginPath(); ctx.ellipse(X + Wp / 2, Y + 6 + ph, Wp * 0.42, 7, 0, Math.PI * 1.08, Math.PI * 1.92); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.3)';
+    ctx.beginPath(); ctx.ellipse(X + Wp / 2, Y + Hp - 6 - ph, Wp * 0.42, 7, 0, Math.PI * 0.08, Math.PI * 0.92); ctx.stroke();
+  }
   for (let i = 0; i < 2; i++) {
     const rad = 26 + ((t * 14 + i * 46) % 90);
     ctx.globalAlpha = Math.max(0, 0.4 - rad / 240);
@@ -2035,6 +2190,24 @@ function drawPondDetailed(ctx: CanvasRenderingContext2D, cam: { x: number; y: nu
   lotus(X + Wp * 0.78, Y + Hp * 0.7, 1.15, t + 2);
   flower(X + Wp * 0.78 - 8, Y + Hp * 0.7 - 13, 0.8);
   lotus(X + Wp * 0.55, Y + Hp * 0.5, 0.7, t + 1);
+  // Ultra: thêm hoa sen nở + nụ + cá đớp bóng (mặt ao có sự sống)
+  if (Q_ULTRA) {
+    flower(X + Wp * 0.42, Y + Hp * 0.62 - 11, 0.9);
+    flower(X + Wp * 0.66, Y + Hp * 0.34 - 10, 0.7);
+    // nụ sen khép
+    const budX = X + Wp * 0.34, budY = Y + Hp * 0.55 + Math.sin(t * 1.8 + 9) * 1.5;
+    ctx.fillStyle = '#ff9db0';
+    ctx.beginPath(); ctx.ellipse(budX, budY, 4.5, 7, 0.2, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = '#ff5b8b';
+    ctx.beginPath(); ctx.ellipse(budX - 2.5, budY - 1, 2, 4.5, 0.2, 0, 7); ctx.fill();
+    // vòng đớp mồi lan ra theo nhịp
+    const jp = (t * 0.5) % 1;
+    ctx.globalAlpha = (1 - jp) * 0.6;
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(X + Wp * 0.7, Y + Hp * 0.45, 4 + jp * 22, 2 + jp * 8, 0, 0, 7); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
   // lau sậy anime góc ao: thân viền + bông nâu viền
   const reed = (rx: number, ry: number, h: number) => {
     for (let k = -2; k <= 2; k++) {
@@ -2203,6 +2376,30 @@ function drawRiverDetailed(ctx: CanvasRenderingContext2D, cam: { x: number; y: n
     }
   }
   ctx.globalAlpha = 1;
+  // dải nắng + vệt phản chiếu đèn bến trên sông (nhánh thường)
+  if (!Q_LOW) {
+    const sunLane = ctx.createLinearGradient(0, ww, 0, ww + 170);
+    sunLane.addColorStop(0, 'rgba(255,250,220,.14)');
+    sunLane.addColorStop(1, 'rgba(255,250,220,0)');
+    ctx.fillStyle = sunLane;
+    ctx.fillRect(WORLD.w * 0.55 - cam.x, ww, WORLD.w * 0.2, 170);
+    for (let i = 0; i < 12; i++) {
+      const gx = WORLD.w * 0.55 + hash2(i, 91) * WORLD.w * 0.2 - cam.x;
+      const gy = ww + 10 + hash2(i, 93) * 140;
+      if (gx < -10 || gx > W + 10) continue;
+      const tw = Math.sin(t * 4.4 + i * 2.1);
+      if (tw < 0.2) continue;
+      ctx.fillStyle = `rgba(255,255,240,${(0.3 + tw * 0.4).toFixed(3)})`;
+      const len = 8 + (i % 3) * 7;
+      rr(ctx, gx - len / 2, gy, len, 2.6, 1.3); ctx.fill();
+    }
+    // mép bọt dọc bờ sông
+    ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0 - cam.x, ww + 3 + Math.sin(t * 2) * 1.5);
+    for (let x = 0; x <= WORLD.w; x += 60) ctx.lineTo(x - cam.x, ww + 3 + Math.sin(t * 2 + x * 0.03) * 1.5);
+    ctx.stroke();
+  }
   // bóng cá anime bơi (ellipse + đuôi + vây, có viền sáng)
   for (let i = 0; i < 6; i++) {
     const sx = ((i * 311 + t * (36 + i * 7)) % (WORLD.w + 140)) - 70 - cam.x;
@@ -2424,12 +2621,17 @@ function drawTreeDetailed(ctx: CanvasRenderingContext2D, x: number, y: number, s
     ctx.beginPath(); ctx.ellipse(x + ox * sc, y + 1, 9 * sc, 4.5 * sc, 0, 0, 7); ctx.fill();
     ctx.lineWidth = 2 * sc; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
   }
-  // thân viền + vân + highlight
+  // thân viền + vân + highlight + mắt gỗ
   const tx = x - 8 * sc, tw = 16 * sc, th = 50 * sc;
   rr(ctx, tx, y - th, tw, th + 4, 6 * sc); ctx.fillStyle = '#8b5a2b'; ctx.fill();
   ctx.lineWidth = 2.6 * sc; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
   rr(ctx, tx + 3 * sc, y - th + 3 * sc, 4 * sc, th - 6 * sc, 2 * sc); ctx.fillStyle = '#5d3a1a'; ctx.fill();
   rr(ctx, tx + tw - 6 * sc, y - th + 4 * sc, 3 * sc, th - 8 * sc, 1.5 * sc); ctx.fillStyle = 'rgba(255,235,200,.55)'; ctx.fill();
+  // vân vỏ xoắn
+  ctx.strokeStyle = 'rgba(70,40,15,.5)'; ctx.lineWidth = 1.4 * sc; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x - 3 * sc, y - 6 * sc); ctx.quadraticCurveTo(x + 1 * sc, y - 24 * sc, x - 3 * sc, y - 42 * sc); ctx.stroke();
+  ctx.fillStyle = '#4a2c14';
+  ctx.beginPath(); ctx.ellipse(x + 3.5 * sc, y - 30 * sc, 1.6 * sc, 2.6 * sc, 0.3, 0, 7); ctx.fill();
   // hốc cây kawaii
   ctx.fillStyle = '#3e2723';
   ctx.beginPath(); ctx.ellipse(x, y - 14 * sc, 4.5 * sc, 6 * sc, 0, 0, 7); ctx.fill();
@@ -2444,21 +2646,32 @@ function drawTreeDetailed(ctx: CanvasRenderingContext2D, x: number, y: number, s
     ctx.beginPath(); ctx.moveTo(x, y - 38 * sc); ctx.lineTo(x + (ex as number) * sc, y + (ey as number) * sc); ctx.stroke();
   }
   const sway = Math.sin(t * 1.2 + x * 0.01) * 2.6;
-  // tán: vẽ viền trước rồi fill pastel từng lớp
-  const blob = (bx: number, by: number, r: number, c: string, hi = false) => {
+  // tán HD: lớp sau tối sâu + 2 lớp giữa + đỉnh sáng + viền nắng
+  const blob = (bx: number, by: number, r: number, c: string, hi = false, rim = false) => {
     ctx.fillStyle = c;
     ctx.beginPath(); ctx.arc(bx, by, r, 0, 7); ctx.fill();
     ctx.lineWidth = 2.6 * sc; ctx.strokeStyle = 'rgba(45,70,30,.9)'; ctx.stroke();
     if (hi) {
       ctx.fillStyle = 'rgba(220,255,220,.55)';
       ctx.beginPath(); ctx.ellipse(bx - r * 0.3, by - r * 0.35, r * 0.4, r * 0.24, -0.4, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.75)';
+      ctx.beginPath(); ctx.ellipse(bx - r * 0.34, by - r * 0.42, r * 0.13, r * 0.08, -0.4, 0, 7); ctx.fill();
+    }
+    if (rim) {
+      // viền nắng trên đỉnh tán
+      ctx.strokeStyle = 'rgba(240,255,200,.8)'; ctx.lineWidth = 2 * sc; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(bx, by, r - 1.5 * sc, Math.PI * 1.1, Math.PI * 1.8); ctx.stroke();
     }
   };
+  // lớp lót tối phía sau cho có chiều sâu
+  blob(x + sway * 0.3, y - 56 * sc, 34 * sc, '#1b5e20');
   blob(x + sway * 0.5, y - 62 * sc, 31 * sc, '#2e7d32');
   blob(x - 17 * sc + sway, y - 52 * sc, 21 * sc, '#388e3c', true);
   blob(x + 17 * sc + sway, y - 54 * sc, 21 * sc, '#388e3c', true);
-  blob(x - 6 * sc + sway, y - 73 * sc, 19 * sc, '#4a9e4d', true);
-  blob(x + 9 * sc + sway, y - 71 * sc, 16 * sc, '#5cb85c', true);
+  blob(x - 22 * sc + sway, y - 62 * sc, 14 * sc, '#43a047', true);
+  blob(x + 23 * sc + sway, y - 63 * sc, 14 * sc, '#43a047', true);
+  blob(x - 6 * sc + sway, y - 73 * sc, 19 * sc, '#4a9e4d', true, true);
+  blob(x + 9 * sc + sway, y - 71 * sc, 16 * sc, '#5cb85c', true, true);
   // chùm sáng trên tán
   ctx.fillStyle = 'rgba(255,255,220,.35)';
   ell(ctx, x - 8 * sc + sway, y - 80 * sc, 9 * sc, 4.5 * sc);
@@ -2468,14 +2681,19 @@ function drawTreeDetailed(ctx: CanvasRenderingContext2D, x: number, y: number, s
     drawTreeFruit(ctx, x + sway, y - 48 * sc, 6.5 * sc, fruit);
     if (Math.sin(t * 2 + x) > 0.6) drawSparkle(ctx, x + 14 * sc + sway, y - 70 * sc, 5, 0.9);
   }
-  // cánh hoa / lá rơi anime
-  for (let k = 0; k < 2; k++) {
+  // cánh hoa / lá rơi anime (Ultra: nhiều gấp đôi + lấp lánh)
+  for (let k = 0; k < (Q_ULTRA ? 5 : 2); k++) {
     const lt = (t * 0.4 + x * 0.01 + k * 0.5) % 1;
     const lx = x + Math.sin(t * 2 + x + k * 2) * 20 * sc;
     const ly = y - 44 * sc - lt * 34;
     ctx.fillStyle = fruit ? 'rgba(255,255,255,.9)' : 'rgba(120,200,120,.9)';
     ctx.beginPath(); ctx.ellipse(lx, ly, 3.2 * sc, 2.2 * sc, 0.6, 0, 7); ctx.fill();
     ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(60,90,50,.6)'; ctx.stroke();
+    if (Q_ULTRA && Math.sin(t * 3 + k * 2 + x) > 0.5) {
+      ctx.fillStyle = 'rgba(255,255,255,.9)';
+      ctx.fillRect(lx - 2.4, ly - 0.5, 4.8, 1);
+      ctx.fillRect(lx - 0.5, ly - 2.4, 1, 4.8);
+    }
   }
   // hoa cỏ dưới gốc
   axFlower(ctx, x - 22 * sc, y - 2, 5.5, '#ffffff');
@@ -2506,9 +2724,14 @@ function drawAnimalDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number,
     ctx.strokeStyle = '#ef6c00'; ctx.lineWidth = 2.4;
     ctx.beginPath(); ctx.moveTo(-4, 8); ctx.lineTo(-4 + legSwing, 15); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(5, 8); ctx.lineTo(5 - legSwing, 15); ctx.stroke();
-    // thân tròn
+    // thân tròn HD: viền + lưng tối + bụng sáng
     ctx.fillStyle = chick ? '#ffeb3b' : '#fff';
     ctx.beginPath(); ctx.ellipse(0, 0, chick ? 11 : 15, chick ? 10 : 12, 0, 0, 7); ctx.fill();
+    ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = chick ? 'rgba(230,150,0,.25)' : 'rgba(150,170,190,.35)';
+    ctx.beginPath(); ctx.ellipse(-2, -5, chick ? 7 : 10, chick ? 5 : 6, -0.2, Math.PI * 1.05, Math.PI * 1.95); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.6)';
+    ctx.beginPath(); ctx.ellipse(-3, 5, chick ? 6 : 9, chick ? 3 : 4.5, 0, 0, 7); ctx.fill();
     if (!chick) {
       // cánh + đuôi
       ctx.fillStyle = '#eceff1'; ctx.beginPath(); ctx.ellipse(-3, 1, 8, 5.5, -0.4, 0, 7); ctx.fill();
@@ -2519,22 +2742,30 @@ function drawAnimalDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number,
       ctx.fillStyle = '#fff9c4';
       for (let k = 0; k < 5; k++) { ctx.beginPath(); ctx.arc(-8 + k * 4, -6 + (k % 2) * 3, 2.4, 0, 7); ctx.fill(); }
     }
-    // đầu + mào + mỏ
+    // đầu + mào + mỏ (có viền)
     ctx.fillStyle = chick ? '#ffeb3b' : '#fff';
     ctx.beginPath(); ctx.arc(9, -9, chick ? 7 : 8.5, 0, 7); ctx.fill();
+    ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
     if (!chick) {
       ctx.fillStyle = '#e53935';
       ctx.beginPath(); ctx.arc(6, -17, 3, 0, 7); ctx.fill();
       ctx.beginPath(); ctx.arc(10, -18.5, 3.2, 0, 7); ctx.fill();
       ctx.beginPath(); ctx.arc(14, -17, 3, 0, 7); ctx.fill();
+      ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT;
+      ctx.beginPath(); ctx.arc(10, -17.5, 6.5, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.5)';
+      ctx.beginPath(); ctx.arc(9, -19, 1.2, 0, 7); ctx.fill();
       ctx.fillStyle = '#e53935'; ctx.beginPath(); ctx.arc(11, -3, 2.4, 0, 7); ctx.fill(); // tích
     } else {
       ctx.fillStyle = '#ff8f00'; ctx.beginPath(); ctx.arc(9, -15, 2.2, 0, 7); ctx.fill();
     }
     ctx.fillStyle = '#fb8c00';
     ctx.beginPath(); ctx.moveTo(16, -10); ctx.lineTo(21, -8); ctx.lineTo(16, -5.5); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(11, -10, 1.8, 0, 7); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(11.6, -10.6, 0.7, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    // mắt kép long lanh
+    ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(11, -10, 2, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(11.7, -10.7, 0.8, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(10.4, -9.3, 0.4, 0, 7); ctx.fill();
   } else if (type === 'duck') {
     const baby = age01 < 0.35;
     ctx.strokeStyle = '#ef6c00'; ctx.lineWidth = 2.6;
@@ -2542,18 +2773,26 @@ function drawAnimalDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number,
     ctx.beginPath(); ctx.moveTo(5, 8); ctx.lineTo(5 - legSwing, 15); ctx.stroke();
     ctx.fillStyle = baby ? '#fff176' : '#eceff1';
     ctx.beginPath(); ctx.ellipse(0, 1, baby ? 12 : 16, baby ? 10 : 12, 0, 0, 7); ctx.fill();
+    ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.beginPath(); ctx.ellipse(-3, -3, baby ? 7 : 10, baby ? 4.5 : 5.5, -0.2, 0, 7); ctx.fill();
     // cánh xám
     if (!baby) { ctx.fillStyle = '#b0bec5'; ctx.beginPath(); ctx.ellipse(-2, 2, 9, 6, -0.3, 0, 7); ctx.fill(); }
     // đuôi nhọn
     ctx.fillStyle = baby ? '#fff176' : '#90a4ae';
     ctx.beginPath(); ctx.moveTo(-14, -2); ctx.lineTo(-22, -8); ctx.lineTo(-20, 0); ctx.closePath(); ctx.fill();
-    // đầu + mỏ dẹt
+    // đầu + mỏ dẹt (có viền + mắt kép)
     ctx.fillStyle = baby ? '#ffeb3b' : age01 >= 1 ? '#2e7d32' : '#78909c';
     ctx.beginPath(); ctx.arc(10, -10, baby ? 7.5 : 9, 0, 7); ctx.fill();
+    ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
     ctx.fillStyle = '#ffb300';
     ctx.beginPath(); ctx.ellipse(19, -9, 5.5, 3, 0, 0, 7); ctx.fill();
-    ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(11, -11, 2, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.5)';
+    ctx.beginPath(); ctx.ellipse(18, -10, 2.6, 1.2, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(11, -11, 2.1, 0, 7); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(11.7, -11.7, 0.8, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(10.4, -10.3, 0.4, 0, 7); ctx.fill();
   } else if (type === 'cow') {
     const baby = age01 < 0.35;
     // chân
@@ -2563,9 +2802,12 @@ function drawAnimalDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number,
     ctx.fillStyle = '#4e342e';
     ctx.fillRect(-12, 12 + legSwing * 0.5, 6, 3); ctx.fillRect(-3, 12 - legSwing * 0.5, 6, 3);
     ctx.fillRect(5, 12 + legSwing * 0.5, 6, 3); ctx.fillRect(12, 12 - legSwing * 0.5, 6, 3);
-    // thân + đốm
+    // thân + đốm (có viền + bụng sáng)
     ctx.fillStyle = '#fafafa';
     rr(ctx, -18, -12, 34, 18, 8); ctx.fill();
+    ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    rr(ctx, -15, 2, 28, 3, 1.5); ctx.fill();
     ctx.fillStyle = '#212121';
     if (!baby) {
       ctx.beginPath(); ctx.ellipse(-8, -5, 5, 4, 0.4, 0, 7); ctx.fill();
@@ -2573,9 +2815,11 @@ function drawAnimalDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number,
     } else {
       ctx.beginPath(); ctx.ellipse(-4, -5, 3.4, 2.6, 0.4, 0, 7); ctx.fill();
     }
-    // đầu
+    // đầu bò (viền + mõm bóng + mắt kép)
     ctx.fillStyle = '#fafafa'; ctx.beginPath(); ctx.arc(21, -8, 9, 0, 7); ctx.fill();
+    ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
     ctx.fillStyle = '#f8bbd0'; ctx.beginPath(); ctx.ellipse(24, -3, 5.5, 4, 0, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
     ctx.fillStyle = '#ad1457';
     ctx.beginPath(); ctx.arc(22, -3, 1.2, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(26, -3, 1.2, 0, 7); ctx.fill();
     // sừng + tai + chuông
@@ -2585,8 +2829,9 @@ function drawAnimalDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number,
     }
     ctx.fillStyle = '#eceff1';
     ell(ctx, 13, -10, 3.5, 2.5); ell(ctx, 29, -10, 3.5, 2.5);
-    ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(22, -10, 2, 0, 7); ctx.fill();
+    ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(22, -10, 2.1, 0, 7); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(22.7, -10.7, 0.8, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(21.4, -9.3, 0.4, 0, 7); ctx.fill();
     if (age01 >= 1) {
       ctx.fillStyle = '#ffca28'; ctx.beginPath(); ctx.arc(21, 2, 3, 0, 7); ctx.fill();
       ctx.fillStyle = '#8b5a2b'; ctx.fillRect(20, -1, 2, 2);
@@ -2603,13 +2848,15 @@ function drawAnimalDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number,
     ctx.fillRect(-12, 2 + legSwing * 0.5, 6, 11); ctx.fillRect(6, 2 - legSwing * 0.5, 6, 11);
     ctx.fillStyle = '#ad1457';
     ctx.fillRect(-12, 10 + legSwing * 0.5, 6, 3); ctx.fillRect(6, 10 - legSwing * 0.5, 6, 3);
-    // thân tròn
+    // thân tròn heo (viền + da bóng)
     ctx.fillStyle = baby ? '#f8bbd0' : '#f06292';
     ctx.beginPath(); ctx.ellipse(0, -2, baby ? 14 : 18, baby ? 10 : 13, 0, 0, 7); ctx.fill();
+    ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.ellipse(-4, -7, 8, 4, -0.3, 0, 7); ctx.fill();
-    // đầu dính liền + mõm + tai
+    // đầu dính liền + mõm + tai (có viền)
     ctx.fillStyle = baby ? '#f8bbd0' : '#f06292';
     ctx.beginPath(); ctx.arc(15, -6, baby ? 8 : 10, 0, 7); ctx.fill();
+    ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
     ctx.fillStyle = baby ? '#f48fb1' : '#ec407a';
     ctx.beginPath(); ctx.moveTo(8, -15); ctx.lineTo(11, -21); ctx.lineTo(14, -15); ctx.closePath(); ctx.fill();
     ctx.beginPath(); ctx.moveTo(17, -15); ctx.lineTo(20, -21); ctx.lineTo(22, -14); ctx.closePath(); ctx.fill();
@@ -2625,20 +2872,23 @@ function drawAnimalDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number,
     // chân đen
     ctx.fillStyle = '#212121';
     ctx.fillRect(-10, 4 + legSwing * 0.5, 5, 11); ctx.fillRect(5, 4 - legSwing * 0.5, 5, 11);
-    // len xù nhiều cục
+    // len xù nhiều cục (viền ngoài + lõi sáng)
     const puffs: [number, number, number][] = baby
       ? [[-6, -6, 7], [0, -9, 8], [6, -6, 7], [0, -3, 8]]
       : [[-12, -6, 8], [-4, -11, 9], [4, -11, 9], [12, -6, 8], [0, -4, 10], [-6, -2, 8], [7, -2, 8]];
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT;
     for (const [px, py, pr] of puffs) {
-      ctx.fillStyle = '#fafafa'; ctx.beginPath(); ctx.arc(px, py, pr, 0, 7); ctx.fill();
+      ctx.fillStyle = '#fafafa'; ctx.beginPath(); ctx.arc(px, py, pr, 0, 7); ctx.fill(); ctx.stroke();
       ctx.fillStyle = '#eceff1'; ctx.beginPath(); ctx.arc(px - 2, py - 2, pr * 0.45, 0, 7); ctx.fill();
     }
-    // mặt đen + tai + mắt to
+    // mặt đen + tai + mắt to long lanh (có viền)
     ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.ellipse(15, -4, 6, 7, 0, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
     ell(ctx, 9, -8, 3, 2); ell(ctx, 9, 0, 3, 2);
     ctx.fillStyle = '#fff';
     ctx.beginPath(); ctx.arc(16.5, -6, 1.7, 0, 7); ctx.fill();
     ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(16.8, -6, 0.9, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(17.1, -6.3, 0.35, 0, 7); ctx.fill();
     if (age01 >= 1) {
       // nơ len trên đầu
       ctx.fillStyle = '#e1bee7'; ctx.beginPath(); ctx.arc(4, -17, 4, 0, 7); ctx.fill();
@@ -2665,31 +2915,36 @@ function drawAnimalDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number,
       ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(8, -3, 1.8, 0, 7); ctx.fill();
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(8.6, -3.6, 0.7, 0, 7); ctx.fill();
     } else if (bird) {
-      // chim: thân bầu + đầu + mỏ + cánh
+      // chim: thân bầu + đầu + mỏ + cánh (có viền + mắt kép)
       ctx.strokeStyle = '#ef6c00'; ctx.lineWidth = 2.2;
       ctx.beginPath(); ctx.moveTo(-4, 8); ctx.lineTo(-4 + legSwing, 15); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(5, 8); ctx.lineTo(5 - legSwing, 15); ctx.stroke();
       ctx.fillStyle = coat;
       ctx.beginPath(); ctx.ellipse(0, 0, baby ? 10 : 14, baby ? 8 : 10, 0, 0, 7); ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
       ctx.fillStyle = 'rgba(0,0,0,.12)';
       ctx.beginPath(); ctx.ellipse(-2, 1, 7, 4.5, -0.3, 0, 7); ctx.fill();
       ctx.fillStyle = coat; ctx.beginPath(); ctx.arc(9, -8, baby ? 6 : 7.5, 0, 7); ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
       ctx.fillStyle = type === 'cut' ? '#ff8f00' : '#ffb300';
       ctx.beginPath(); ctx.moveTo(15, -9); ctx.lineTo(20, -7); ctx.lineTo(15, -4.5); ctx.closePath(); ctx.fill();
       if (type === 'goose' && age01 >= 1) { // mào ngỗng
         ctx.fillStyle = '#e53935'; ctx.beginPath(); ctx.arc(9, -15, 2.6, 0, 7); ctx.fill();
       }
-      ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(10, -9, 1.7, 0, 7); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(10.6, -9.6, 0.6, 0, 7); ctx.fill();
+      ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(10, -9, 1.8, 0, 7); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(10.6, -9.6, 0.7, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(10, -8.3, 0.35, 0, 7); ctx.fill();
     } else {
-      // thú 4 chân: thân + đầu + tai/sừng theo loài
+      // thú 4 chân: thân + đầu + tai/sừng theo loài (có viền)
       ctx.fillStyle = coat;
       ctx.fillRect(-12, 2 + legSwing * 0.5, 6, 12); ctx.fillRect(-3, 2 - legSwing * 0.5, 6, 12);
       ctx.fillRect(5, 2 + legSwing * 0.5, 6, 12); ctx.fillRect(12, 2 - legSwing * 0.5, 6, 12);
       ctx.fillStyle = coat;
       rr(ctx, -17, -12, 33, 17, 8); ctx.fill();
+      ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,.28)'; ell(ctx, -4, -6, 8, 4);
       ctx.fillStyle = coat; ctx.beginPath(); ctx.arc(20, -8, 8.5, 0, 7); ctx.fill();
+      ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
       if (type === 'goat') { // sừng cong + râu
         ctx.strokeStyle = '#8d6e63'; ctx.lineWidth = 2.6;
         ctx.beginPath(); ctx.arc(15, -16, 5, Math.PI * 0.9, Math.PI * 1.9); ctx.stroke();
@@ -2710,8 +2965,9 @@ function drawAnimalDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number,
         ctx.beginPath(); ctx.ellipse(16, -22, 1.4, 5, 0.15, 0, 7); ctx.fill();
         ctx.beginPath(); ctx.ellipse(23, -22, 1.4, 5, -0.15, 0, 7); ctx.fill();
       }
-      ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(21, -10, 1.9, 0, 7); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(21.6, -10.6, 0.7, 0, 7); ctx.fill();
+      ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(21, -10, 2, 0, 7); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(21.6, -10.6, 0.75, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(21, -9.3, 0.35, 0, 7); ctx.fill();
       const wag = Math.sin(t * 5 + uid) * 3;
       ctx.strokeStyle = coat; ctx.lineWidth = 2.4;
       ctx.beginPath(); ctx.moveTo(-17, -8); ctx.quadraticCurveTo(-23, -3, -22 + wag, 2); ctx.stroke();
@@ -2781,32 +3037,45 @@ function drawDogDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number, fl
   ctx.translate(X, Y + (sitting ? 2 : Math.abs(Math.sin(t * 11 + uid)) * -1.5));
   ctx.scale(flip ? -1 : 1, 1);
   if (sitting) {
-    // ngồi: thân dựng + 2 chân trước thẳng
+    // ngồi: thân dựng + 2 chân trước thẳng (có viền + yếm sáng)
     ctx.fillStyle = dark;
     ctx.fillRect(-9, 2, 5, 10); ctx.fillRect(4, 2, 5, 10);
     ctx.fillStyle = coat;
     rr(ctx, -13, -14, 24, 20, 8); ctx.fill();
+    ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.35)'; ell(ctx, -4, -6, 6, 8);
-    // đầu to + tai rủ + lưỡi thè
+    // đầu to + tai rủ + lưỡi thè (có viền)
     ctx.fillStyle = coat; ctx.beginPath(); ctx.arc(4, -20, 11, 0, 7); ctx.fill();
+    ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    // vòng cổ + thẻ tên
+    ctx.strokeStyle = '#e53935'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(4, -20, 10, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
+    ctx.fillStyle = '#ffeb3b'; ctx.beginPath(); ctx.arc(4, -9.5, 2.2, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
     ctx.fillStyle = dark; ell(ctx, -4, -24, 4, 7); ell(ctx, 12, -24, 4, 7);
     ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(7, -22, 2.4, 0, 7); ctx.fill();
     ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(7.4, -22, 1.2, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(7.8, -22.4, 0.45, 0, 7); ctx.fill();
     ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(1, -15, 2.6, 0, 7); ctx.fill();
     ctx.fillStyle = '#ff8a80'; ctx.fillRect(-1, -13, 4, 6); // lưỡi
     // đuôi vẫy mạnh khi ngồi
     ctx.strokeStyle = coat; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.moveTo(-13, -2); ctx.quadraticCurveTo(-20, -4, -19 + wag, -12); ctx.stroke();
   } else {
-    // đứng/chạy: 4 chân so le + thân dài + đuôi vẫy
+    // đứng/chạy: 4 chân so le + thân dài + đuôi vẫy (có viền)
     ctx.fillStyle = dark;
     ctx.fillRect(-11, 2 + step * 0.6, 5, 10); ctx.fillRect(-2, 2 - step * 0.6, 5, 10);
     ctx.fillRect(5, 2 + step * 0.6, 5, 10); ctx.fillRect(12, 2 - step * 0.6, 5, 10);
     ctx.fillStyle = coat;
     rr(ctx, -16, -12, 32, 16, 8); ctx.fill();
+    ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.3)'; ell(ctx, -4, -6, 8, 4);
-    // đầu + mõm + tai
+    // đầu + mõm + tai (có viền)
     ctx.fillStyle = coat; ctx.beginPath(); ctx.arc(19, -10, 9.5, 0, 7); ctx.fill();
+    ctx.lineWidth = 2.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    // vòng cổ
+    ctx.strokeStyle = '#e53935'; ctx.lineWidth = 2.6;
+    ctx.beginPath(); ctx.arc(13, -8, 8, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
     ctx.fillStyle = '#f5f0e6'; ell(ctx, 24, -5, 5, 4);
     ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(25, -6, 1.8, 0, 7); ctx.fill();
     ctx.fillStyle = dark;
@@ -2814,6 +3083,7 @@ function drawDogDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number, fl
     ctx.beginPath(); ctx.moveTo(21, -18); ctx.lineTo(24, -26); ctx.lineTo(27, -17); ctx.closePath(); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(20, -12, 2.2, 0, 7); ctx.fill();
     ctx.fillStyle = '#212121'; ctx.beginPath(); ctx.arc(20.4, -12, 1.1, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(20.8, -12.4, 0.4, 0, 7); ctx.fill();
     // đuôi
     ctx.strokeStyle = coat; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.moveTo(-16, -8); ctx.quadraticCurveTo(-22, -12, -21 + wag, -18); ctx.stroke();
@@ -2834,14 +3104,23 @@ function drawCatDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number, fl
   ctx.translate(X, Y + (moving ? Math.abs(Math.sin(t * 12 + uid)) * -1.2 : 0));
   ctx.scale((flip ? -1 : 1) * 0.92, 0.92);
   if (sitting) {
-    // ngồi liếm lông: thân tam giác + đuôi cuộn + mắt híp
+    // ngồi liếm lông: thân tam giác + đuôi cuộn + mắt híp (có viền)
     ctx.fillStyle = coat;
     ctx.beginPath(); ctx.ellipse(0, 0, 11, 13, 0, 0, 7); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.3)';
+    ctx.beginPath(); ctx.ellipse(-3, 2, 5, 8, 0, 0, 7); ctx.fill();
     ctx.strokeStyle = stripe; ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.moveTo(-6, -8); ctx.lineTo(-2, -8); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(-6, -2); ctx.lineTo(-2, -2); ctx.stroke();
-    // đầu + tai nhọn + vằn
+    // đầu + tai nhọn + vằn (có viền)
     ctx.fillStyle = coat; ctx.beginPath(); ctx.arc(0, -16, 9.5, 0, 7); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    // vằn trán
+    ctx.strokeStyle = stripe; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-3, -24); ctx.lineTo(-3, -20); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(0, -21); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(3, -24); ctx.lineTo(3, -20); ctx.stroke();
     ctx.fillStyle = coat;
     ctx.beginPath(); ctx.moveTo(-9, -20); ctx.lineTo(-11, -30); ctx.lineTo(-3, -23); ctx.closePath(); ctx.fill();
     ctx.beginPath(); ctx.moveTo(9, -20); ctx.lineTo(11, -30); ctx.lineTo(3, -23); ctx.closePath(); ctx.fill();
@@ -2861,20 +3140,27 @@ function drawCatDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number, fl
     ctx.beginPath(); ctx.arc(2, 6, 10, 0.3, 2.4); ctx.stroke();
     ctx.fillStyle = stripe; ctx.beginPath(); ctx.arc(11 + tailWag * 0.3, 1, 2.4, 0, 7); ctx.fill();
   } else {
-    // đi/chạy: thân dài + 4 chân + đuôi dựng vẫy
+    // đi/chạy: thân dài + 4 chân + đuôi dựng vẫy (có viền + yếm sáng)
     ctx.fillStyle = coat;
     ctx.fillRect(-10, 0 + step * 0.5, 4, 10); ctx.fillRect(-2, 0 - step * 0.5, 4, 10);
     ctx.fillRect(5, 0 + step * 0.5, 4, 10); ctx.fillRect(10, 0 - step * 0.5, 4, 10);
     ctx.fillStyle = coat; rr(ctx, -13, -10, 26, 13, 6); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.28)';
+    rr(ctx, -11, -2, 22, 3, 1.5); ctx.fill();
     ctx.fillStyle = stripe;
     ctx.fillRect(-8, -10, 3, 6); ctx.fillRect(0, -10, 3, 6); ctx.fillRect(8, -10, 3, 6);
-    // đầu + tai + mắt tròn + mũi hồng
+    // đầu + tai + mắt tròn long lanh + mũi hồng (có viền)
     ctx.fillStyle = coat; ctx.beginPath(); ctx.arc(15, -12, 8.5, 0, 7); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
     ctx.fillStyle = coat;
     ctx.beginPath(); ctx.moveTo(8, -16); ctx.lineTo(7, -25); ctx.lineTo(13, -19); ctx.closePath(); ctx.fill();
     ctx.beginPath(); ctx.moveTo(20, -17); ctx.lineTo(22, -26); ctx.lineTo(25, -18); ctx.closePath(); ctx.fill();
     ctx.fillStyle = '#7bff62'; ctx.beginPath(); ctx.arc(13.5, -13, 1.8, 0, 7); ctx.fill();
     ctx.beginPath(); ctx.arc(18, -13, 1.8, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(13, -13.6, 0.6, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(17.5, -13.6, 0.6, 0, 7); ctx.fill();
     ctx.fillStyle = '#212121';
     ctx.beginPath(); ctx.arc(13.5, -13, 0.8, 0, 7); ctx.fill();
     ctx.beginPath(); ctx.arc(18, -13, 0.8, 0, 7); ctx.fill();
@@ -3038,6 +3324,11 @@ export function drawKem(
 // ---------- nông dân chibi anime: đầu to + mắt kawaii + nón lá viền ----------
 export function drawPlayerDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number, dir: number, moving: boolean, shirt: string, name: string, t: number, outfit?: Record<string, string>, carColor?: string | null, carKind?: string | null, carId?: string | null, withHoe?: boolean, wingLv = 1) {
   if (!carColor) axShadow(ctx, X, Y + 22, 16, 6, 0.3);
+  // Ultra: bóng nắng xiên dài theo hướng mặt trời (High chỉ có bóng tròn)
+  if (!carColor && Q_ULTRA) {
+    ctx.fillStyle = 'rgba(30,40,20,.18)';
+    ctx.beginPath(); ctx.ellipse(X - 14, Y + 24, 22, 5, 0.12, 0, 7); ctx.fill();
+  }
   if (moving && !carColor && Math.abs(Math.sin(t * 12)) > 0.6) {
     ctx.fillStyle = 'rgba(255,255,255,.7)';
     ell(ctx, X - dir * 10, Y + 19, 4.4, 2.4);
@@ -3274,9 +3565,15 @@ export function drawPlayerDetailed(ctx: CanvasRenderingContext2D, X: number, Y: 
   } else if ((pantsId === 'pants_gem' || pantsId === 'pants_vang') && Math.sin(t * 3.4) > 0.3) {
     drawSparkle(ctx, 12, 4, 3.5, 0.9);
   }
-  // áo + tay da bo viền (màu theo áo đang mặc)
+  // áo + tay da bo viền (màu theo áo đang mặc) + nếp gấp + lai áo
   axFrame(ctx, -13, -11, 26, 13, 6, shirtC, 2.4);
   ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(-10, -9, 20, 3.4);
+  // bóng sườn phải + nếp gấp nách
+  ctx.fillStyle = 'rgba(0,0,0,.14)'; ctx.fillRect(8, -9, 4.5, 9.5);
+  ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-6, -3); ctx.quadraticCurveTo(-4, 0, -6, 1.5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(2, -3); ctx.quadraticCurveTo(4, 0, 2, 1.5); ctx.stroke();
+  ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.fillRect(-13, 0, 26, 1.8);
   // --- họa tiết riêng từng áo xịn ---
   if (shirtId === 'shirt_dragon') {
     // vảy rồng + viền vàng
@@ -3321,11 +3618,17 @@ export function drawPlayerDetailed(ctx: CanvasRenderingContext2D, X: number, Y: 
   }
   // tay buông (ẩn khi đang lái — tay lái vẽ riêng tới ghi đông/vô lăng)
   if (!carColor) for (const [ox, sw] of [[-18, step * 0.7], [12, -step * 0.7]] as [number, number][]) {
+    // ống tay áo + tay da + bàn tay có ngón
+    rr(ctx, ox as number, -11 + (sw as number), 6, 5, 2.5); ctx.fillStyle = shirtC; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
     rr(ctx, ox as number, -9 + (sw as number), 6, 13, 3); ctx.fillStyle = '#ffcf9e'; ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
     ctx.fillStyle = '#ffcf9e';
     ctx.beginPath(); ctx.arc((ox as number) + 3, 5 + (sw as number), 3, 0, 7); ctx.fill();
     ctx.lineWidth = 1.8; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+    ctx.strokeStyle = 'rgba(150,90,60,.6)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo((ox as number) + 1.5, 4 + (sw as number)); ctx.lineTo((ox as number) + 1.5, 7 + (sw as number)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo((ox as number) + 3.5, 4 + (sw as number)); ctx.lineTo((ox as number) + 3.5, 7 + (sw as number)); ctx.stroke();
   }
   // ba lô anime (+ cuốc viền CHỈ khi đang ở nông trại — ra thị trấn/ vào nhà thì cất cuốc)
   axShadow(ctx, -20, 4, 5, 2, 0.2);
@@ -3337,10 +3640,19 @@ export function drawPlayerDetailed(ctx: CanvasRenderingContext2D, X: number, Y: 
     ctx.beginPath(); ctx.moveTo(-19, -8); ctx.lineTo(-25, -27); ctx.stroke();
     axFrame(ctx, -30, -32, 10, 7, 2.5, '#cfd8dc', 2);
   }
-  // đầu chibi to + viền
+  // đầu chibi to + viền + tai + bóng cổ
   ctx.fillStyle = '#ffcf9e';
   ctx.beginPath(); ctx.arc(0, -20, 11, 0, 7); ctx.fill();
   ctx.lineWidth = 2.4; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  // tai 2 bên (nhìn nghiêng thấy 1 bên rõ)
+  ctx.fillStyle = '#ffcf9e';
+  ctx.beginPath(); ctx.arc(dir > 0 ? 10 : -10, -19, 2.6, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.6; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+  ctx.fillStyle = '#f4a988';
+  ctx.beginPath(); ctx.arc(dir > 0 ? 10 : -10, -19, 1.2, 0, 7); ctx.fill();
+  // bóng dưới cằm (khối cổ) + viền sáng tóc hắt
+  ctx.fillStyle = 'rgba(200,120,80,.35)';
+  ctx.beginPath(); ctx.ellipse(0, -11.5, 6, 2.2, 0, 0, 7); ctx.fill();
   // má hồng + mắt kawaii nhìn theo hướng
   axBlush(ctx, -6, -16, 3.4, 2, 0.6);
   axBlush(ctx, 7, -16, 3.4, 2, 0.6);
@@ -5313,7 +5625,8 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
   // cấp đồ họa áp dụng ngay: đặt cờ cho cả frame này
   Q_LOW = s.quality === 'low';
   Q_MED = s.quality === 'medium';
-  // Thấp = 0 (bỏ hết tia lửa), TB = 1 (tia lửa thưa 1/2), Cao = 2 (đủ)
+  Q_ULTRA = isUltra(s.quality);
+  // Thấp = 0 (bỏ hết tia lửa), TB = 1 (tia lửa thưa 1/2), Cao/Ultra = 2 (đủ)
   setFxLevel(Q_LOW ? 0 : Q_MED ? 1 : 2);
   ctx.clearRect(0, 0, W, H);
   drawGrassBase(ctx, cam, W, H, t);
@@ -5447,6 +5760,17 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
           ctx.fillStyle = `rgba(${racSoft},${0.8 * (1 - (Y + 10 - py) / 56)})`;
           ctx.beginPath(); ctx.arc(px, py, 1.7, 0, 7); ctx.fill();
         }
+        // Ultra: vòng phấn hoa bay quanh luống chín (High không có)
+        if (Q_ULTRA) {
+          for (let k = 0; k < 6; k++) {
+            const a = t * 1.5 + i * 1.3 + k * 1.047;
+            const px = X + Math.cos(a) * (30 + Math.sin(t * 2 + k) * 4);
+            const py = Y - 2 + Math.sin(a) * 22 - 6;
+            const tw = 0.4 + 0.6 * Math.abs(Math.sin(t * 3 + k * 1.7));
+            ctx.fillStyle = `rgba(255,250,200,${(0.75 * tw).toFixed(3)})`;
+            ctx.beginPath(); ctx.arc(px, py, 1.8, 0, 7); ctx.fill();
+          }
+        }
         // giỏ thu hoạch nảy + quầng vàng (Thấp: bỏ quầng)
         const bx = X + pp.w / 2 - 8, by = Y - pp.h / 2 + 14 + b * 0.4;
         if (!Q_LOW) {
@@ -5485,8 +5809,8 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
     }
   }
 
-  // bướm anime: cánh viền + thân viền + vệt bay (Thấp: tắt, TB: 2 con)
-  for (let i = 0; i < (Q_LOW ? 0 : Q_MED ? 2 : 4); i++) {
+  // bướm anime: cánh viền + thân viền + vệt bay (Thấp: tắt, TB: 2 con, Ultra: 7 con)
+  for (let i = 0; i < (Q_LOW ? 0 : Q_MED ? 2 : Q_ULTRA ? 7 : 4); i++) {
     const bx = FARM.x + ((t * (24 + i * 8) + i * 260) % FARM.w) - cam.x;
     const by = FARM.y + 60 + ((i * 127) % (FARM.h - 120)) + Math.sin(t * 3 + i * 2) * 14 - cam.y;
     if (bx < -10 || bx > W + 10) continue;
@@ -5703,6 +6027,11 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
   }
   // lớp thời tiết phủ cuối cùng (layer trời riêng, parallax theo camera)
   drawWeather(ctx, W, H, cam, s.weather ?? 'sunny', t);
+  // ULTRA: phủ điện ảnh (grading + god rays + bụi/hoa/chim + mưa tóe/tuyết sâu + vignette)
+  if (isUltra(s.quality)) {
+    const dtU = s.dayTime;
+    drawUltraPost(ctx, W, H, cam, t, { dayTime: dtU, weather: s.weather ?? 'sunny', night: dtU < 0.2 || dtU > 0.82 });
+  }
   // HUD mini-game câu cá vẽ TRỰC TIẾP trong canvas (fallback khi overlay DOM bị che):
   // luôn nằm giữa màn hình theo đơn vị logic nên màn to/nhỏ đều thấy.
   if (s.sit?.bite && s.sit.combo && s.sit.combo.length > 0) {

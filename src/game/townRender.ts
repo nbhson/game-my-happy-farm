@@ -10,6 +10,7 @@ import {
 } from './town';
 import { computePairOffsets, drawActionFx, drawBikeSide, drawEggThrow, drawKem, drawKiki, drawMimi, drawMotoSide, drawPairFx, drawParkedCar, drawPlayerDetailed, type PairActor, type VisitorDraw } from './render';
 import { drawMoon, drawSparkle, drawSun, setFxLevel } from './icons';
+import { drawUltraPost, isUltra } from './ultra';
 
 export interface TownRenderState {
   player: { x: number; y: number; dir: number; moving: boolean; tx: number | null; ty: number | null; name: string };
@@ -53,11 +54,14 @@ export interface TownRenderState {
 // ===== Cấp đồ họa: renderTown đặt mỗi frame =====
 let TQ_LOW = false;
 let TQ_MED = false;
+/** ultra: giữ full hiệu ứng high + phủ điện ảnh cuối drawSkyFx */
+export let TQ_ULTRA = false;
 
 /** Đặt cấp đồ họa cho frame (dùng chung town + mall) */
 export function setTQ(q: string) {
   TQ_LOW = q === 'low';
   TQ_MED = q === 'medium';
+  TQ_ULTRA = isUltra(q);
   setFxLevel(TQ_LOW ? 0 : TQ_MED ? 1 : 2);
 }
 
@@ -406,14 +410,21 @@ function drawFountain(ctx: CanvasRenderingContext2D, cam: { x: number; y: number
     ctx.fillStyle = 'rgba(255,255,255,.5)';
     ctx.beginPath(); ctx.ellipse(X - r * 0.4, Y + dy - r * 0.18, r * 0.3, r * 0.1, -0.3, 0, 7); ctx.fill();
   }
-  // mặt nước
+  // mặt nước: đáy hồ gradient sâu + lấp lánh
   const wg = ctx.createRadialGradient(X, Y - 2, 4, X, Y - 2, FOUNTAIN.r - 30);
-  wg.addColorStop(0, '#c8f4ff'); wg.addColorStop(0.6, '#4fc3f7'); wg.addColorStop(1, '#1d7fb8');
+  wg.addColorStop(0, '#d8f8ff'); wg.addColorStop(0.45, '#5fd0f5'); wg.addColorStop(0.8, '#2a9fd0'); wg.addColorStop(1, '#166a94');
   ctx.fillStyle = wg;
   ctx.beginPath(); ctx.ellipse(X, Y - 6, FOUNTAIN.r - 34, (FOUNTAIN.r - 34) * 0.5, 0, 0, 7); ctx.fill();
   ctx.fillStyle = 'rgba(255,255,255,.55)';
   ell(ctx, X - 20, Y - 14, 15, 4);
   ell(ctx, X + 12, Y - 2, 9, 2.6);
+  // lấp lánh mặt nước xoay
+  for (let k = 0; k < 4; k++) {
+    if (Math.sin(t * 2.2 + k * 1.9) > 0.45) {
+      const h = hash2(k, 55);
+      drawSparkle(ctx, X - 30 + h * 60, Y - 12 + hash2(k, 91) * 12, 4, 0.7);
+    }
+  }
   // đồng xu ước nguyện lấp lánh dưới đáy
   for (let k = 0; k < 5; k++) {
     const h = hash2(k, 11);
@@ -426,9 +437,31 @@ function drawFountain(ctx: CanvasRenderingContext2D, cam: { x: number; y: number
       ctx.beginPath(); ctx.arc(cxp - 1, cyp - 0.8, 0.9, 0, 7); ctx.fill();
     }
   }
-  // cột giữa + chim đá + 3 tia nước
+  // cột giữa + 2 tầng đĩa tràn + chim đá + 3 tia nước
   frame(ctx, X - 10, Y - 52, 20, 52, 8, '#cfd8dc', 2.6);
   ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.fillRect(X - 7, Y - 50, 5, 48);
+  // tầng đĩa trên + dưới hứng nước tràn
+  for (const [bw, byy] of [[30, -46], [52, -28]] as [number, number][]) {
+    const dye = Y + byy;
+    ctx.fillStyle = '#dbe4ea';
+    ctx.beginPath(); ctx.ellipse(X, dye, bw, bw * 0.32, 0, 0, 7); ctx.fill();
+    ctx.lineWidth = 2.4; ctx.strokeStyle = OUT; ctx.stroke();
+    // vòng cung nước tràn qua mép đĩa
+    ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2;
+    for (let k = -2; k <= 2; k++) {
+      const ax = X + k * (bw / 2.6);
+      ctx.beginPath(); ctx.moveTo(ax, dye + 2); ctx.quadraticCurveTo(ax + 2, dye + 9, ax, dye + 15); ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.beginPath(); ctx.ellipse(X - bw * 0.3, dye - 2, bw * 0.22, 2.4, -0.3, 0, 7); ctx.fill();
+  }
+  // bọt trắng chân cột
+  for (let k = 0; k < 5; k++) {
+    const h = hash2(k, 77);
+    const fx2 = X - 22 + h * 44, fy2 = Y - 12 + hash2(k, 31) * 8;
+    ctx.fillStyle = `rgba(255,255,255,${0.5 + 0.3 * Math.sin(t * 3 + k * 2)})`;
+    ctx.beginPath(); ctx.ellipse(fx2, fy2, 4.5, 2.4, 0, 0, 7); ctx.fill();
+  }
   ctx.fillStyle = '#90a4ae';
   ctx.beginPath(); ctx.arc(X, Y - 58, 7, 0, 7); ctx.fill();
   ctx.lineWidth = 2.2; ctx.strokeStyle = OUT; ctx.stroke();
@@ -469,6 +502,22 @@ function drawFountain(ctx: CanvasRenderingContext2D, cam: { x: number; y: number
     const g = ctx.createRadialGradient(X, Y - 10, 4, X, Y - 10, 110);
     g.addColorStop(0, 'rgba(140,220,255,.4)'); g.addColorStop(1, 'rgba(140,220,255,0)');
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(X, Y - 10, 110, 0, 7); ctx.fill();
+  }
+  // Ultra: quầng cầu vồng đôi + hạt nước bay (High chỉ có 1 cầu vồng mờ)
+  if (TQ_ULTRA && !night) {
+    ctx.globalAlpha = 0.3;
+    for (let b = 0; b < 3; b++) {
+      ctx.strokeStyle = ['#ff8a80', '#ffd54f', '#80d8ff'][b];
+      ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.arc(X - 34, Y - 10, 20 - b * 4, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    for (let k = 0; k < 8; k++) {
+      const dx = X - 30 + hash2(k, 55) * 60;
+      const dy = Y - 70 + ((t * 30 + hash2(k, 57) * 60) % 60);
+      ctx.fillStyle = `rgba(200,240,255,${(0.5 + 0.4 * Math.sin(t * 4 + k * 2)).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(dx, dy, 1.6, 0, 7); ctx.fill();
+    }
   }
   namePill(ctx, X, Y + FOUNTAIN.r * 0.5 + 26, 'Đài phun ước nguyện');
 }
@@ -1190,12 +1239,37 @@ export function drawSakura(ctx: CanvasRenderingContext2D, cam: { x: number; y: n
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(bx, by, r, 0, 7); ctx.fill();
     ctx.lineWidth = 2.4; ctx.strokeStyle = OUT; ctx.stroke();
+    // cụm cánh đậm/nhạt xen kẽ bên trong tán
+    for (let c = 0; c < 4; c++) {
+      const h = hash2(seed * 31 + ox + c, oy + c * 7);
+      const cxp = bx - r * 0.55 + h * r * 1.1;
+      const cyp = by - r * 0.5 + hash2(c, seed * 17 + ox) * r;
+      ctx.fillStyle = c % 2 ? 'rgba(255,255,255,.75)' : 'rgba(230,70,120,.5)';
+      ctx.beginPath(); ctx.arc(cxp, cyp, 2.6 + (c % 2), 0, 7); ctx.fill();
+    }
     ctx.fillStyle = 'rgba(255,255,255,.6)';
     ctx.beginPath(); ctx.ellipse(bx - r * 0.35, by - r * 0.4, r * 0.3, r * 0.18, -0.4, 0, 7); ctx.fill();
     blush(ctx, bx - 6, by + 2, 4, 2.4, 0.5);
     blush(ctx, bx + 7, by + 1, 3.4, 2, 0.45);
   }
-  for (let k = 0; k < 4; k++) {
+  // 3 cánh hoa rơi xoay (Ultra: 7 cánh + lấp lánh)
+  for (let k = 0; k < (TQ_ULTRA ? 7 : 3); k++) {
+    const ph = seed + k * 2.3;
+    const px = X + Math.sin(t * 0.9 + ph) * 32;
+    const py = Y - 30 - ((t * 16 + ph * 12) % 64);
+    const fade = Math.max(0, 1 - (Y - 30 - py) / 74);
+    ctx.save();
+    ctx.translate(px, py); ctx.rotate(Math.sin(t * 2 + ph) * 1.2 + k);
+    ctx.fillStyle = `rgba(255,170,200,${0.9 * fade})`;
+    ctx.beginPath(); ctx.ellipse(0, 0, 3.6, 2.3, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = `rgba(190,80,120,${0.6 * fade})`; ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = `rgba(255,255,255,${0.7 * fade})`;
+    ctx.beginPath(); ctx.arc(-0.8, -0.6, 0.9, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+  // hạt lấp lánh li ti còn lại
+  for (let k = 3; k < 4; k++) {
     const ph = seed + k * 2.3;
     const px = X + Math.sin(t * 0.9 + ph) * 32;
     const py = Y - 30 - ((t * 16 + ph * 12) % 64);
@@ -1221,13 +1295,46 @@ export function drawLamp(ctx: CanvasRenderingContext2D, cam: { x: number; y: num
   frame(ctx, X + sway - 9, Y - 32, 18, 9, 4, '#9a6530', 2);
   flower(ctx, X + sway - 4, Y - 36, 4.5, '#ff8fb0');
   flower(ctx, X + sway + 4, Y - 36, 4.5, '#ffffff');
-  // đầu đèn
-  frame(ctx, X - 12, Y - 80, 24, 26, 7, night ? '#ffe9a8' : '#cfd8dc', 2.6);
+  // đầu đèn: chao gradient + nắp
+  {
+    const cap = ctx.createLinearGradient(0, Y - 80, 0, Y - 54);
+    if (night) { cap.addColorStop(0, '#fff6c8'); cap.addColorStop(0.5, '#ffe08a'); cap.addColorStop(1, '#ff9e2c'); }
+    else { cap.addColorStop(0, '#ffffff'); cap.addColorStop(0.6, '#cfd8dc'); cap.addColorStop(1, '#90a4ae'); }
+    frame(ctx, X - 12, Y - 80, 24, 26, 7, cap, 2.6);
+    // nan chao dọc
+    ctx.strokeStyle = 'rgba(90,60,30,.45)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(X - 4, Y - 78); ctx.lineTo(X - 4, Y - 56); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(X + 4, Y - 78); ctx.lineTo(X + 4, Y - 56); ctx.stroke();
+    // highlight chéo mặt kính
+    ctx.fillStyle = 'rgba(255,255,255,.6)';
+    ctx.beginPath();
+    ctx.moveTo(X - 8, Y - 58); ctx.lineTo(X - 1, Y - 77); ctx.lineTo(X + 3, Y - 77); ctx.lineTo(X - 4, Y - 58);
+    ctx.closePath(); ctx.fill();
+  }
   frame(ctx, X - 8, Y - 86, 16, 7, 3, OUT, 1.8);
   if (night) {
+    // quầng đêm 2 lớp
     const g = ctx.createRadialGradient(X, Y - 67, 2, X, Y - 67, 64);
-    g.addColorStop(0, 'rgba(255,210,100,.6)'); g.addColorStop(1, 'rgba(255,210,100,0)');
+    g.addColorStop(0, 'rgba(255,215,130,.65)'); g.addColorStop(0.5, 'rgba(255,200,100,.28)'); g.addColorStop(1, 'rgba(255,210,100,0)');
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(X, Y - 67, 64, 0, 7); ctx.fill();
+    const g2 = ctx.createRadialGradient(X, Y - 67, 1, X, Y - 67, 26);
+    g2.addColorStop(0, 'rgba(255,240,200,.8)'); g2.addColorStop(1, 'rgba(255,240,200,0)');
+    ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(X, Y - 67, 26, 0, 7); ctx.fill();
+    // nón sáng hắt xuống đất
+    ctx.fillStyle = 'rgba(255,215,130,.16)';
+    ctx.beginPath(); ctx.moveTo(X - 10, Y - 56); ctx.lineTo(X + 10, Y - 56); ctx.lineTo(X + 24, Y + 2); ctx.lineTo(X - 24, Y + 2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,220,140,.20)';
+    ctx.beginPath(); ctx.ellipse(X, Y + 2, 24, 5, 0, 0, 7); ctx.fill();
+    // đom đóm quanh đèn (3 con, bay lượn)
+    for (let k = 0; k < 3; k++) {
+      const a = t * (1.6 + k * 0.4) + k * 2.1 + x * 0.05;
+      const bx = X + Math.cos(a) * (16 + k * 5), by = Y - 60 + Math.sin(a * 1.4) * 13 + k * 3;
+      const tw = 0.5 + 0.5 * Math.sin(t * 5 + k * 2);
+      ctx.fillStyle = `rgba(255,255,170,${0.85 * tw})`;
+      ctx.beginPath(); ctx.arc(bx, by, 1.8, 0, 7); ctx.fill();
+      ctx.fillStyle = `rgba(255,255,170,${0.25 * tw})`;
+      ctx.beginPath(); ctx.arc(bx, by, 4.5, 0, 7); ctx.fill();
+    }
     // bướm đêm bay quanh đèn
     for (let k = 0; k < 2; k++) {
       const a = t * 2.4 + k * 3.1 + x;
@@ -1244,16 +1351,34 @@ export function drawBench(ctx: CanvasRenderingContext2D, cam: { x: number; y: nu
   shadow(ctx, X, Y + 10, 32, 5, 0.2);
   const s = flip ? -1 : 1;
   ctx.save(); ctx.translate(X, Y); ctx.scale(s, 1);
-  // tựa lưng
+  // tựa lưng có vân gỗ + ốc vít
   frame(ctx, -30, -30, 60, 12, 6, '#b07a3e', 2.6);
+  ctx.strokeStyle = 'rgba(90,50,20,.45)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(-26, -26); ctx.lineTo(26, -26); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-26, -22); ctx.lineTo(26, -22); ctx.stroke();
+  for (const vx of [-24, 24]) {
+    ctx.fillStyle = '#5d4037';
+    ctx.beginPath(); ctx.arc(vx, -24, 1.8, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.5)';
+    ctx.beginPath(); ctx.arc(vx - 0.6, -24.6, 0.7, 0, 7); ctx.fill();
+  }
   frame(ctx, -26, -18, 6, 14, 3, '#7c4f21', 2);
   frame(ctx, 20, -18, 6, 14, 3, '#7c4f21', 2);
-  // mặt ngồi + nệm kẻ hồng
+  // mặt ngồi vân gỗ + nệm kẻ hồng có nút + bóng vải
   frame(ctx, -32, -6, 64, 10, 5, '#c98a4b', 2.6);
+  ctx.strokeStyle = 'rgba(90,50,20,.4)'; ctx.lineWidth = 1.1;
+  ctx.beginPath(); ctx.moveTo(-30, -1.5); ctx.lineTo(30, -1.5); ctx.stroke();
   ctx.fillStyle = '#ff9ebb';
   ctx.fillRect(-26, -5, 52, 8);
   ctx.fillStyle = '#fff';
   for (let k = 0; k < 4; k++) ctx.fillRect(-26 + k * 14, -5, 5, 8);
+  // nút nệm + viền bóng vải
+  ctx.fillStyle = 'rgba(150,40,80,.6)';
+  ctx.beginPath(); ctx.arc(0, -1, 1.8, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.4)';
+  ctx.fillRect(-26, -5, 52, 2);
+  ctx.fillStyle = 'rgba(120,30,60,.25)';
+  ctx.fillRect(-26, 1, 52, 2);
   ctx.lineWidth = 2; ctx.strokeStyle = OUT;
   rr(ctx, -26, -5, 52, 8, 3); ctx.stroke();
   // chân
@@ -1344,13 +1469,23 @@ function drawBunting(ctx: CanvasRenderingContext2D, cam: { x: number; y: number 
       const bx = X1 + (X2 - X1) * p;
       const by = (Y1 + (Y2 - Y1) * p) + 46 * 2 * p * (1 - p) * 2 * 0.5 + 20 * p * (1 - p);
       const sway = Math.sin(t * 2.4 + i * 1.3 + X1 * 0.01) * 2;
-      ctx.fillStyle = cols[i % cols.length];
+      const base = cols[i % cols.length];
+      ctx.fillStyle = base;
       ctx.beginPath();
       ctx.moveTo(bx - 6, by);
       ctx.lineTo(bx + 6, by);
       ctx.lineTo(bx + sway, by + 12);
       ctx.closePath(); ctx.fill();
       ctx.lineWidth = 1.6; ctx.strokeStyle = OUT; ctx.stroke();
+      // nếp vải: nửa tối + highlight mép
+      ctx.fillStyle = 'rgba(0,0,0,.14)';
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx + 6, by);
+      ctx.lineTo(bx + sway, by + 12);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.35)';
+      ctx.fillRect(bx - 6, by, 2.5, 2.5);
     }
   }
 }
@@ -1479,8 +1614,11 @@ export function drawVendor(
   ctx.fillStyle = '#7c4f21';
   rr(ctx, X - 3, Y - 52, 6, 44, 3); ctx.fill();
   ctx.lineWidth = 2; ctx.strokeStyle = OUT; ctx.stroke();
-  // tủ xe
+  // tủ xe có vân gỗ + highlight kính
   frame(ctx, X - 30, Y - 12, 60, 24, 6, kind === 'kem' ? '#fff3d6' : '#e3f2fd', 2.8);
+  ctx.strokeStyle = 'rgba(120,70,30,.35)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(X - 28, Y - 3); ctx.lineTo(X + 28, Y - 3); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.fillRect(X - 27, Y - 10, 54, 3);
   ctx.fillStyle = kind === 'kem' ? '#ff5b8b' : '#3b82f6';
   ctx.fillRect(X - 26, Y - 8, 52, 8);
   for (const wx of [-22, 22]) {
@@ -1624,11 +1762,26 @@ export function drawGarage(ctx: CanvasRenderingContext2D, cam: { x: number; y: n
   const X = R.x - cam.x, Y = R.y - cam.y;
   const W = R.w, H = R.h;
   if (X < -320 || X > 4000 || Y < -240 || Y > 3000) return;
-  // bóng + tường + mái
+  // bóng + tường gradient + mái viền neon
   shadow(ctx, X + W / 2, Y + H + 6, W / 2, 10, 0.22);
-  frame(ctx, X, Y, W, H, 10, '#8d99a1', 3);
+  {
+    const wallg = ctx.createLinearGradient(0, Y, 0, Y + H);
+    wallg.addColorStop(0, '#a7b4bd'); wallg.addColorStop(0.5, '#8d99a1'); wallg.addColorStop(1, '#6e7b85');
+    frame(ctx, X, Y, W, H, 10, wallg, 3);
+  }
   ctx.fillStyle = '#54616c'; ctx.fillRect(X + 4, Y + 4, W - 8, 26);
   ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(X + 8, Y + 34, W - 16, 5);
+  // dải đèn neon mái chạy
+  for (let k = 0; k < 8; k++) {
+    const nx = X + 20 + k * ((W - 40) / 7);
+    const on = Math.sin(t * 3 + k * 0.9) > -0.3;
+    ctx.fillStyle = on ? (night ? '#7df9ff' : '#bfe9ff') : 'rgba(140,150,160,.5)';
+    ctx.beginPath(); ctx.arc(nx, Y + 8, on ? 3.4 : 2.2, 0, 7); ctx.fill();
+    if (night && on) {
+      ctx.fillStyle = 'rgba(125,249,255,.25)';
+      ctx.beginPath(); ctx.arc(nx, Y + 8, 8, 0, 7); ctx.fill();
+    }
+  }
   // 2 ô kính trưng bày: xe đạp + xe máy sau kính
   const win = (wx: number, kind: 'bike' | 'moto', color: string) => {
     frame(ctx, wx, Y + 66, 96, 84, 8, '#dfe9ef', 3);
@@ -1646,22 +1799,38 @@ export function drawGarage(ctx: CanvasRenderingContext2D, cam: { x: number; y: n
   };
   win(X + 14, 'bike', '#38bdf8');
   win(X + W - 110, 'moto', '#ef4444');
-  // cửa đôi giữa (hé sáng)
+  // cửa cuốn nan giữa 2 ô kính (thay cửa đôi phẳng)
   const dx = X + W / 2;
-  frame(ctx, dx - 32, Y + H - 108, 64, 100, 6, '#4e342e', 3);
+  frame(ctx, dx - 34, Y + H - 112, 68, 104, 6, '#4e342e', 3);
+  for (let k = 0; k < 9; k++) {
+    const sy = Y + H - 107 + k * 11;
+    const sl = ctx.createLinearGradient(0, sy, 0, sy + 9);
+    sl.addColorStop(0, night ? '#8a97a3' : '#b9c6cf');
+    sl.addColorStop(1, night ? '#5b6670' : '#8b98a2');
+    ctx.fillStyle = sl;
+    ctx.fillRect(dx - 29, sy, 58, 9);
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.fillRect(dx - 29, sy, 58, 2);
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(40,45,55,.6)';
+    ctx.strokeRect(dx - 29, sy, 58, 9);
+  }
+  // khe hé sáng chân cửa + tay nắm khóa cuốn
   ctx.fillStyle = night ? '#ffdf9e' : '#5d4037';
-  ctx.fillRect(dx - 27, Y + H - 103, 54, 95);
-  ctx.fillStyle = '#2b2117'; ctx.fillRect(dx - 2, Y + H - 103, 4, 95);
+  ctx.fillRect(dx - 29, Y + H - 14, 58, 6);
+  frame(ctx, dx - 10, Y + H - 44, 20, 12, 3, '#2b343d', 1.8);
   ctx.fillStyle = '#ffd24d';
-  ctx.beginPath(); ctx.arc(dx - 12, Y + H - 55, 3, 0, 7); ctx.fill();
-  ctx.beginPath(); ctx.arc(dx + 12, Y + H - 55, 3, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(dx, Y + H - 38, 2.6, 0, 7); ctx.fill();
   if (Math.sin(t * 2.4) > 0.5) drawSparkle(ctx, X + W / 2, Y + 96, 5, 0.9);
-  // bảng hiệu trên 2 cọc
+  // biển neon trên 2 cọc có viền sáng
   ctx.fillStyle = '#37474f';
   ctx.fillRect(X + 62, Y - 32, 6, 34);
   ctx.fillRect(X + 192, Y - 32, 6, 34);
   frame(ctx, X + 30, Y - 68, 170, 40, 8, '#37474f', 3);
-  txt(ctx, '🚗 GARA ANH TÝ', X + 115, Y - 52, 14, '#ffeb3b');
+  if (night) {
+    ctx.strokeStyle = 'rgba(125,249,255,.7)'; ctx.lineWidth = 1.6;
+    rr(ctx, X + 33, Y - 65, 164, 34, 6); ctx.stroke();
+  }
+  txt(ctx, '🚗 GARA ANH TÝ', X + 115, Y - 52, 14, night ? '#7df9ff' : '#ffeb3b');
   txt(ctx, 'vào trong xem xe • xe đạp từ 10k', X + 115, Y - 38, 8, '#ffffff');
   if (night) {
     const g = ctx.createRadialGradient(dx, Y + H - 60, 2, dx, Y + H - 60, 110);
@@ -1676,6 +1845,34 @@ export function drawCarDealer(ctx: CanvasRenderingContext2D, cam: { x: number; y
   if (X < -120 || X > 4000 || Y < -140 || Y > 3000) return;
   const bob = Math.sin(t * 2 + 3) * 1.5;
   shadow(ctx, X, Y + 14, 20, 5, 0.24);
+  // sàn trưng bày bóng loáng + phản chiếu
+  ctx.fillStyle = 'rgba(200,220,235,.55)';
+  ctx.beginPath(); ctx.ellipse(X, Y + 12, 34, 8, 0, 0, 7); ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = OUT; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.55)';
+  ctx.beginPath(); ctx.ellipse(X - 10, Y + 10, 12, 3, -0.2, 0, 7); ctx.fill();
+  // xe trưng bày mini bóng sàn (bên cạnh anh Tý)
+  {
+    const carX = X + 44, carY = Y + 6;
+    ctx.fillStyle = 'rgba(0,0,0,.18)';
+    ctx.beginPath(); ctx.ellipse(carX, carY + 6, 24, 5, 0, 0, 7); ctx.fill();
+    const cg2 = ctx.createLinearGradient(0, carY - 12, 0, carY + 6);
+    cg2.addColorStop(0, '#ff8a80'); cg2.addColorStop(1, '#c62828');
+    ctx.fillStyle = cg2;
+    rr(ctx, carX - 22, carY - 10, 44, 14, 7); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = OUT; ctx.stroke();
+    ctx.fillStyle = '#bfe6ff';
+    rr(ctx, carX - 12, carY - 8, 24, 7, 3); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.fillRect(carX - 10, carY - 7, 8, 2.5);
+    for (const wx of [-13, 13]) {
+      ctx.fillStyle = '#2b2b33';
+      ctx.beginPath(); ctx.arc(carX + wx, carY + 4, 5, 0, 7); ctx.fill();
+      ctx.lineWidth = 1.6; ctx.strokeStyle = OUT; ctx.stroke();
+      ctx.fillStyle = '#9aa4ae';
+      ctx.beginPath(); ctx.arc(carX + wx, carY + 4, 2, 0, 7); ctx.fill();
+    }
+    if (Math.sin(t * 3 + 1) > 0.5) drawSparkle(ctx, carX + 18, carY - 10, 4, 0.8);
+  }
   const vx = X, vy = Y + bob;
   // thân vest xanh + cà vạt đỏ
   frame(ctx, vx - 10, vy - 42, 20, 32, 7, '#1e3a5f', 2.2);
@@ -1782,9 +1979,24 @@ export function drawCasino(ctx: CanvasRenderingContext2D, cam: { x: number; y: n
   ctx.lineTo(cx + 6, Y + b.h - 68);
   ctx.lineTo(cx - 24, Y + b.h - 14);
   ctx.closePath(); ctx.fill();
+  // 2 cột đá cẩm thạch 2 bên + đế vàng
+  for (const px of [X + 10, X + b.w - 10]) {
+    const cg = ctx.createLinearGradient(px - 7, 0, px + 7, 0);
+    cg.addColorStop(0, '#9a8f7f'); cg.addColorStop(0.5, '#efe6d4'); cg.addColorStop(1, '#9a8f7f');
+    frame(ctx, px - 7, Y + 30, 14, b.h - 30, 4, cg, 2.2);
+    ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.fillRect(px - 4, Y + 33, 3, b.h - 36);
+    frame(ctx, px - 10, Y + 26, 20, 8, 3, '#ffd24d', 2);
+    frame(ctx, px - 10, Y + b.h - 6, 20, 8, 3, '#ffd24d', 2);
+    // rãnh cột dọc
+    ctx.strokeStyle = 'rgba(120,100,70,.4)'; ctx.lineWidth = 1.1;
+    ctx.beginPath(); ctx.moveTo(px - 2, Y + 40); ctx.lineTo(px - 2, Y + b.h - 8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(px + 2, Y + 40); ctx.lineTo(px + 2, Y + b.h - 8); ctx.stroke();
+  }
   // thảm đỏ + 2 chậu kim tiền
   ctx.fillStyle = '#d6336c';
   rr(ctx, cx - 20, Y + b.h - 12, 40, 14, 4); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.3)';
+  ctx.fillRect(cx - 20, Y + b.h - 12, 40, 3);
   for (const px of [X + 22, X + b.w - 22]) {
     frame(ctx, px - 10, Y + b.h - 30, 20, 18, 4, '#7c4f21', 2.2);
     ctx.fillStyle = '#43d17c';
@@ -1827,7 +2039,7 @@ export function drawCasino(ctx: CanvasRenderingContext2D, cam: { x: number; y: n
     }
     ctx.restore();
   };
-  // mái vòm + xúc xắc
+  // mái vòm + xúc xắc + đèn marquee chạy đuổi
   ctx.fillStyle = '#2a1445';
   ctx.beginPath();
   ctx.moveTo(X - 6, Y + 2);
@@ -1835,6 +2047,17 @@ export function drawCasino(ctx: CanvasRenderingContext2D, cam: { x: number; y: n
   ctx.lineTo(X + b.w + 6, Y + 2);
   ctx.closePath(); ctx.fill();
   ctx.lineWidth = 3; ctx.strokeStyle = '#ffd24d'; ctx.lineJoin = 'round'; ctx.stroke();
+  for (let k = 0; k < 8; k++) {
+    const mx = X + 14 + k * ((b.w - 28) / 7);
+    const myy = Y - 8 - Math.abs(mx - cx) * 0.12;
+    const on = Math.sin(t * 5 - k * 0.9) > 0;
+    ctx.fillStyle = on ? '#fff59d' : 'rgba(150,110,60,.55)';
+    ctx.beginPath(); ctx.arc(mx, myy, on ? 3.4 : 2.2, 0, 7); ctx.fill();
+    if (night && on) {
+      ctx.fillStyle = 'rgba(255,245,150,.3)';
+      ctx.beginPath(); ctx.arc(mx, myy, 7, 0, 7); ctx.fill();
+    }
+  }
   dice(cx - 30, Y - 34, 5, 0.2);
   dice(cx + 30, Y - 34, 3, -0.25);
   ctx.restore();
@@ -2050,6 +2273,10 @@ export function drawSkyFx(
     ctx.fillStyle = sg;
     ctx.fillRect(0, H - 60, W, 60);
   }
+  // ULTRA: phủ điện ảnh dùng chung farm/town/mall (gọi sau cùng để nổi trên mọi lớp)
+  if (TQ_ULTRA) {
+    drawUltraPost(ctx, W, H, cam, t, { dayTime: dt, weather: s.weather ?? 'sunny', night });
+  }
 }
 
 // ---------- nhà văn hóa / chợ đêm / bảng tin làng ----------
@@ -2068,7 +2295,7 @@ function drawCultureHall(
   ctx.lineWidth = 2; ctx.strokeStyle = OUT; ctx.stroke();
   ctx.fillStyle = 'rgba(255,213,79,.85)';
   ctx.fillRect(X - 26, Y + 8, 52, 4);
-  // lồng đèn đỏ 2 bên cửa (đêm sáng rực)
+  // lồng đèn đỏ 2 bên cửa: giấy nhăn + tua rua + sáng đêm 2 lớp
   for (const dx of [-64, 64]) {
     const lx = X + dx, ly = Y - 52 + Math.sin(t * 2 + dx) * 1.5;
     ctx.strokeStyle = OUT; ctx.lineWidth = 2;
@@ -2077,6 +2304,18 @@ function drawCultureHall(
     ctx.fillStyle = `rgba(229,57,53,${gl})`;
     ctx.beginPath(); ctx.ellipse(lx, ly, 9, 11, 0, 0, 7); ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = OUT; ctx.stroke();
+    // gân lồng đèn dọc + highlight
+    ctx.strokeStyle = 'rgba(120,20,20,.5)'; ctx.lineWidth = 1.1;
+    ctx.beginPath(); ctx.moveTo(lx - 4, ly - 9); ctx.lineTo(lx - 4, ly + 9); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(lx + 4, ly - 9); ctx.lineTo(lx + 4, ly + 9); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.5)';
+    ctx.beginPath(); ctx.ellipse(lx - 3, ly - 4, 2, 3.4, -0.3, 0, 7); ctx.fill();
+    // nắp + tua rua
+    ctx.fillStyle = '#ffd54f';
+    ctx.fillRect(lx - 4, ly - 14, 8, 3);
+    ctx.fillRect(lx - 4, ly + 11, 8, 3);
+    ctx.strokeStyle = '#ffd54f'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(lx, ly + 14); ctx.lineTo(lx, ly + 19); ctx.stroke();
     ctx.fillStyle = '#ffd54f';
     ctx.font = "bold 9px 'Be Vietnam Pro', monospace"; ctx.textAlign = 'center';
     ctx.fillText('HỶ', lx, ly + 3);
@@ -2100,18 +2339,37 @@ function drawMarketStall(
   if (X < -120 || X > 3000) return;
   const bob = Math.sin(t * 2 + seed) * 1.2;
   shadow(ctx, X, Y + 12, 30, 6, 0.24);
-  // 2 cột + mái sọc đỏ trắng
+  // 2 cột + mái sọc đỏ trắng có diềm vải + bóng
   ctx.strokeStyle = '#7c4f21'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(X - 28, Y - 46); ctx.lineTo(X - 28, Y + 10); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(X + 28, Y - 46); ctx.lineTo(X + 28, Y + 10); ctx.stroke();
+  ctx.fillStyle = 'rgba(0,0,0,.15)';
+  ctx.fillRect(X - 32, Y - 48 + bob * 0.4, 65, 3);
   for (let k = 0; k < 5; k++) {
     ctx.fillStyle = k % 2 ? '#ffffff' : '#e53935';
     ctx.fillRect(X - 32 + k * 13, Y - 60 + bob * 0.4, 13, 14);
+    // highlight đầu mái + bóng chân mái
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.fillRect(X - 32 + k * 13, Y - 60 + bob * 0.4, 13, 2.5);
+    ctx.fillStyle = 'rgba(0,0,0,.12)';
+    ctx.fillRect(X - 32 + k * 13, Y - 49 + bob * 0.4, 13, 3);
   }
   ctx.lineWidth = 2.4; ctx.strokeStyle = OUT;
   ctx.strokeRect(X - 32, Y - 60 + bob * 0.4, 65, 14);
-  // bàn hàng + mẹt hàng
+  // 2 đèn lồng mini treo mái
+  for (const lx of [X - 20, X + 20]) {
+    const ly = Y - 44 + Math.sin(t * 2.4 + lx * 0.1) * 1.2;
+    ctx.strokeStyle = OUT; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(lx, Y - 46); ctx.lineTo(lx, ly - 5); ctx.stroke();
+    ctx.fillStyle = '#ffe9a8';
+    ctx.beginPath(); ctx.ellipse(lx, ly, 4.5, 5.5, 0, 0, 7); ctx.fill();
+    ctx.lineWidth = 1.6; ctx.strokeStyle = OUT; ctx.stroke();
+  }
+  // bàn hàng vân gỗ + mẹt hàng + giỏ phụ
   frame(ctx, X - 26, Y - 16, 52, 26, 6, '#c8915a', 2.6);
+  ctx.strokeStyle = 'rgba(90,50,20,.4)'; ctx.lineWidth = 1.1;
+  ctx.beginPath(); ctx.moveTo(X - 24, Y - 4); ctx.lineTo(X + 24, Y - 4); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.fillRect(X - 24, Y - 14, 48, 2.5);
   ctx.fillStyle = '#8d5a2b';
   ctx.beginPath(); ctx.ellipse(X, Y - 16, 24, 7, 0, 0, 7); ctx.fill();
   ctx.lineWidth = 2; ctx.strokeStyle = OUT; ctx.stroke();
