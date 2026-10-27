@@ -5,3 +5,7 @@ dist-ssr
 .DS_Store
 .env
 tsconfig.tsbuildinfo
+# Runtime game data — không bao giờ đẩy lên git
+server/data/db.json
+# Legacy vanilla build (nếu có)
+legacy-vanilla/build/
