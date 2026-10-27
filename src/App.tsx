@@ -5,6 +5,7 @@ import type { InteractTarget } from './game/types';
 import MenuScreen from './components/MenuScreen';
 import HUD from './components/HUD';
 import GameCanvas from './components/GameCanvas';
+import ErrorBoundary from './components/ErrorBoundary';
 import BottomBar from './components/BottomBar';
 import ModalHost from './components/ModalHost';
 import InteriorOverlay from './components/InteriorOverlay';
@@ -48,7 +49,9 @@ export default function App() {
     <div className="h-full flex flex-col bg-[#223322] supports-[height:100dvh]:h-[100dvh]">
       <HUD />
       <div className="relative flex-1 min-h-0 flex items-center justify-center bg-[#101d10] overflow-hidden">
-        <GameCanvas onTarget={onTarget} target={target} />
+        <ErrorBoundary label="Bản đồ nông trại">
+          <GameCanvas onTarget={onTarget} target={target} />
+        </ErrorBoundary>
         <InteriorOverlay />
         <VisitBanner />
         <ContestBoard />
