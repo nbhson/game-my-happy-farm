@@ -52,6 +52,7 @@ interface VillageState {
 let transport: NetTransport | null = null;
 let unsubs: (() => void)[] = [];
 let farmTimer: number | null = null;
+let farmPushTimeout: number | null = null;
 let lastPos = 0;
 
 // ---- KÊNH TIN NHẮN GAME ẨN (thi câu cá / ma sói / ...): đi qua chat broadcast
@@ -68,10 +69,17 @@ export function onGameMsg(prefix: string, cb: GameMsgCb): () => void {
     if (i >= 0) gameHandlers.splice(i, 1);
   };
 }
-/** Gửi tin nhắn game ẩn (không hiện chat). Tên/số tự làm sạch ký tự phân tách. */
+/** Gửi tin nhắn game ẩn (không hiện chat). Tên/số tự làm sạch ký tự phân tách.
+ *  Chưa connect thì xếp hàng đợi — mini-game hay gửi ngay khi mở phòng. */
+const pendingGameMsgs: string[] = [];
 export function sendGameMsg(text: string) {
-  if (!transport) return;
+  if (!transport) {
+    if (pendingGameMsgs.length < 30) pendingGameMsgs.push(text);
+    return;
+  }
   transport.sendChat(text);
+  // xả hàng đợi khi transport vừa sẵn sàng
+  while (pendingGameMsgs.length && transport) transport.sendChat(pendingGameMsgs.shift()!);
 }
 /** Tên mình (đã làm sạch) + id presence — định danh người chơi trong game chung */
 export function gameMe(): { id: string; name: string } {
@@ -203,10 +211,8 @@ export const useVillage = create<VillageState>()((set, get) => ({
       transport = await buildTransport();
     } catch {
       try {
-        const { LocalTransport } = await import('./local');
         transport = new LocalTransport(getPresenceId(), codeFromName(useGame.getState().name || 'ABCDEF'));
       } catch {
-        const { LocalTransport } = await import('./local');
         transport = new LocalTransport(`offline-${Math.floor(Math.random() * 1e9)}`, 'ABCDEF');
       }
     }
@@ -245,15 +251,16 @@ export const useVillage = create<VillageState>()((set, get) => ({
       if (get().visiting) return; // đang thăm farm người khác thì không ghi đè
       transport?.pushFarm(snapshotOfGame());
     }, 10000);
-    // đẩy ngay 1 lần
-    setTimeout(() => transport?.pushFarm(snapshotOfGame()), 2000);
+    // đẩy ngay 1 lần (lưu handle để clear khi disconnect)
+    farmPushTimeout = window.setTimeout(() => { transport?.pushFarm(snapshotOfGame()); farmPushTimeout = null; }, 2000);
   },
 
   disconnect() {
     unsubs.forEach((u) => u());
     unsubs = [];
     if (farmTimer) clearInterval(farmTimer);
-    farmTimer = null;
+    if (farmPushTimeout !== null) clearTimeout(farmPushTimeout);
+    farmTimer = null; farmPushTimeout = null;
     transport?.disconnect();
     transport = null;
     lastPos = 0;

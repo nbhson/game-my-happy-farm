@@ -2,7 +2,7 @@
 // Tái dùng drawPlayerDetailed (người chơi) + depthScale để cùng chất với farm/town.
 import { INTERIORS, SLOT_SYMBOLS, type InteriorDef } from './interiors';
 import { drawBikeSide, drawCarSide, drawMotoSide, drawPlayerDetailed } from './render';
-import { drawUltraPost, isUltra } from './ultra';
+import { drawUltraPost, drawHighPost, isUltra } from './ultra';
 import { CARS, SHIRTS, shirtColorOf } from './data';
 
 export interface InteriorPlayer {
@@ -666,7 +666,7 @@ function drawFurn(ctx: CanvasRenderingContext2D, d: InteriorDef, f: InteriorDef[
       ctx.fillStyle = '#ffd24d';
       ctx.beginPath(); ctx.arc(px - 32 + sw, Y + 132, 2, 0, 7); ctx.fill();
       // mèo mướp cuộn tròn ngủ trên đỉnh
-      const mx = px + 8, my = Y + 16 + Math.sin(t * 1.4) * 1;
+      const mx = px + 8, my = Y + 16 + Number(Math.sin(t * 1.4));
       ctx.fillStyle = OUT; ell(ctx, mx, my, 24, 11); ctx.fill();
       ctx.fillStyle = '#e8963e'; ell(ctx, mx, my, 21, 9);
       ctx.strokeStyle = 'rgba(120,60,10,.5)'; ctx.lineWidth = 1.4;
@@ -1625,5 +1625,8 @@ export function renderInterior(
   // ULTRA trong nhà: bụi bay trong quầng đèn + vignette điện ảnh + grain
   if (isUltra(o.quality)) {
     drawUltraPost(ctx, vw, vh, { x: 0, y: 0 }, t, { dayTime: o.night ? 0.05 : 0.5, night: o.night, indoor: true });
+  } else if (o.quality === 'high') {
+    // CAO trong nhà: chỉ ấm nhẹ + vignette (không bụi đèn/grain)
+    drawHighPost(ctx, vw, vh, { x: 0, y: 0 }, t, { dayTime: o.night ? 0.05 : 0.5, night: o.night, indoor: true });
   }
 }

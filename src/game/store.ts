@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Animal, AnimalType, CoopCap, DailyState, GraphicsQuality, InAct, ModalKind, Plot, PondFish, ResMode, SceneKind, ShopTab, Stats, WeatherKind } from './types';
+import type { Animal, AnimalType, CoopCap, DailyState, FloatText, GraphicsQuality, InAct, ModalKind, Plot, PondFish, ResMode, SceneKind, ShopTab, Stats, WeatherKind } from './types';
+import { newAchievements } from './achievements';
 import {
   ANIMALS, BITE_MAX, BITE_MIN, BITE_WINDOW, CARS, CROPS, DAY_LENGTH, FEED_PRO_PRICE, FEED_PRICE,
-  BAIT_PRO_PRICE, BAIT_PRICE, DEFAULT_OUTFIT, FISHES, MAX_CAP, MAX_PLOTS, MAX_POND, OUTFITS, QUESTS,
+  BAIT_PRO_PRICE, BAIT_PRICE, DEFAULT_OUTFIT, FISHES, MAX_PLOTS, MAX_POND, OUTFITS, QUESTS,
   WING_MAX_LV, WING_UP, isWing,
   PEST_PRICE, PEST_RATE, genBiteCombo,
   type BiteDir,
@@ -11,7 +12,7 @@ import {
   START_CAP, START_PLOTS, START_POND, animalSellPrice, capCost, capReq, plotCost, plotReq, pondCost, pondReq,
   rollRiverCatch, sellPrice,
 } from './data';
-import { PIERS } from './world';
+import { PIERS, plotPos } from './world';
 import { MALL_PIERS } from './mall';
 import { PETS, KEM_UID } from './systems';
 import { sfx } from './audio';
@@ -105,6 +106,15 @@ interface GameState {
   // đang xoa đầu / vuốt ve thú cưng: { uid pet, at } — animation 2 chiều 2.6s
   petFx: { uid: number; at: number } | null;
   toasts: Toast[];
+  // ── Game juice: chữ thưởng bay lên canvas (~1.4s rồi biến mất) ──
+  floatTexts: FloatText[];
+  // ── Thành tựu: danh sách đã nhận (persist) + đếm cây vàng ──
+  achSeen: string[];
+  goldenHarvests: number;
+  // ── Minigame bắt rau: best score + last played at (transient) ──
+  catchGameBest: number;
+  lastCatchGameAt: number;
+  catchGameCooldown: number; // epoch ms hết cooldown
 
   // actions
   /** Đăng nhập bằng username: có snapshot DB thì migrate + dùng, không thì farm mới */
@@ -148,6 +158,12 @@ interface GameState {
   addXP: (n: number) => void;
   addXu: (n: number) => void;
   addGem: (n: number) => void;
+  /** Chữ thưởng bay lên vị trí world (x,y) rồi mờ dần ~1.4s */
+  pushFloat: (x: number, y: number, text: string, color?: string) => void;
+  /** Quét thành tựu mới đạt được: thưởng xu/gem + toast + SFX. Gọi sau các hành động chính. */
+  checkAchieve: () => void;
+  /** Ghi nhận kết quả minigame bắt rau: thưởng theo điểm, lưu best */
+  catchGameResult: (score: number) => { xu: number; gem: number; best: boolean };
   addInv: (pid: string, n: number) => void;
   /** Nhập giftcode: trả về { ok, msg } để modal hiển thị. Mỗi code 1 lần / farm. */
   redeemCode: (raw: string) => { ok: boolean; msg: string };
@@ -264,23 +280,23 @@ function migrateFishes(old: PondFish[] | undefined, uidSeqRef: { v: number }): P
 export const xpNeed = (level: number) => level * 100;
 
 /** Key ngày thực local YYYY-MM-DD — nhiệm vụ ngày refresh lúc 00:00 */
-export function todayKey(d = new Date()): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dd}`;
-}
+export { todayKey, yesterdayKey } from './date';
+import { todayKey, yesterdayKey } from './date';
 /** Khởi tạo daily trống cho ngày thực hiện tại (giữ day ingame để tương thích save cũ) */
 function freshDaily(day: number): DailyState {
-  return { day, date: todayKey(), flags: {}, cats: [], quests: [] };
+  return { day, date: todayKey(), flags: {}, cats: [], quests: [], streak: 1 };
 }
-/** Chuẩn hóa daily từ save cũ (thiếu date) + reset nếu đã qua 00:00 */
+/** Chuẩn hóa daily từ save cũ (thiếu date/streak) + reset nếu đã qua 00:00, tính streak liên tiếp */
 function normalizeDaily(raw: DailyState | undefined, day: number): DailyState {
   if (!raw || typeof raw !== 'object') return freshDaily(day);
   const today = todayKey();
   // save cũ chưa có date → coi như đã cũ, reset 1 lần về hôm nay
-  if (!raw.date || raw.date !== today) return { day, date: today, flags: {}, cats: [], quests: [] };
-  return { day, date: raw.date, flags: raw.flags ?? {}, cats: raw.cats ?? [], quests: raw.quests ?? [] };
+  if (!raw.date || raw.date !== today) {
+    // streak đăng nhập liên tiếp: hôm qua có chơi → +1, bỏ lỡ ≥1 ngày → về 1
+    const streak = raw.date && raw.date === yesterdayKey() ? Math.max(1, raw.streak ?? 1) + 1 : 1;
+    return { day, date: today, flags: {}, cats: [], quests: [], streak };
+  }
+  return { day, date: raw.date, flags: raw.flags ?? {}, cats: raw.cats ?? [], quests: raw.quests ?? [], streak: Math.max(1, raw.streak ?? 1) };
 }
 // throttle check 00:00 trong tick (không cần tạo Date mỗi frame)
 let lastMidnightCheck = 0;
@@ -341,6 +357,22 @@ function saveSoon() {
   void import('../net/account').then((m) => m.syncNow()).catch(() => {});
 }
 
+// --- Debounced storage: ghi localStorage tối đa 1 lần / 2 giây, tránh I/O thrash ---
+// Việc ghi thường xuyên gây lag trên máy yếu, đặc biệt khi state to (45 ô ruộng + cá + gia súc)
+// Lớp debounce đảm bảo state luôn an toàn trong memory; localStorage chỉ lag ~2s so với thực tế.
+function debounceStorage<S>(fn: (v: S) => void, ms: number) {
+  let t: ReturnType<typeof setTimeout> | null = null;
+  let pending: S | null = null;
+  return (v: S) => {
+    pending = v;
+    if (t !== null) return; // đợi lần đang chạy
+    t = setTimeout(() => { fn(pending!); t = null; pending = null; }, ms);
+  };
+}
+const debouncedSetItem = debounceStorage<string>((v) => {
+  try { localStorage.setItem('nongtrai-store', v); } catch { /* quota exceeded */ }
+}, 2000);
+
 export const useGame = create<GameState>()(
   persist(
     (set, get) => ({
@@ -369,6 +401,9 @@ export const useGame = create<GameState>()(
       wingLv: {},
       ownedCars: [], activeCar: null,
       quality: 'high', autoQuality: true, autoLevel: 'medium', resMode: 'auto', thiefBiteUntil: null,
+      // ── game juice + thành tựu: khởi tạo rỗng ──
+      floatTexts: [], achSeen: [], goldenHarvests: 0,
+      catchGameBest: 0, lastCatchGameAt: 0, catchGameCooldown: 0,
       viewH: defaultViewH(),
       kem: false,
       petFx: null,
@@ -426,6 +461,7 @@ export const useGame = create<GameState>()(
             kem: !!data.kem,
             stageColor: data.stageColor ?? '#ffd24d',
             modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, petFx: null, plotFx: [], scene: 'farm',
+            floatTexts: [], goldenHarvests: 0, lastCatchGameAt: 0, catchGameCooldown: 0,
           });
         } else {
           set({
@@ -442,6 +478,7 @@ export const useGame = create<GameState>()(
             ownedCars: [], activeCar: null,
             quality: 'high', autoQuality: true, autoLevel: 'medium', resMode: 'auto', viewH: defaultViewH(), kem: false,
             modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, petFx: null, plotFx: [], scene: 'farm',
+            floatTexts: [], goldenHarvests: 0, lastCatchGameAt: 0, catchGameCooldown: 0,
             baLove: 0, loveClaim: [], fundTotal: 0, fundClaim: [],
             daily: freshDaily(1), junkAt: 0,
           });
@@ -462,9 +499,9 @@ export const useGame = create<GameState>()(
       touchDaily: () => {
         const s = get();
         const today = todayKey();
-        // save cũ chưa có date → reset 1 lần về hôm nay
         if ((s.daily.date ?? '') !== today) {
-          set({ daily: { day: s.day, date: today, flags: {}, cats: [], quests: [] } });
+          const streak = s.daily.date === yesterdayKey() ? Math.max(1, s.daily.streak ?? 1) + 1 : 1;
+          set({ daily: { day: s.day, date: today, flags: {}, cats: [], quests: [], streak } });
           return true;
         }
         return false;
@@ -498,10 +535,58 @@ export const useGame = create<GameState>()(
           xu += level * 50; gem += 1; leveled = true;
         }
         set({ xp, level, xu, gem });
-        if (leveled) { sfx.lvup(); get().toast(`LÊN CẤP ${level}! +${level * 50} xu +1 gem`); get().checkQuest(); }
+        if (leveled) { sfx.lvup(); get().toast(`LÊN CẤP ${level}! +${level * 50} xu +1 gem`); get().checkQuest(); get().checkAchieve(); }
       },
       addXu: (n) => set((s) => ({ xu: s.xu + n, stats: { ...s.stats, earned: s.stats.earned + Math.max(0, n) } })),
       addGem: (n) => set((s) => ({ gem: s.gem + n })),
+      pushFloat: (x, y, text, color = '#ffe082') => {
+        set((s) => ({ floatTexts: [...s.floatTexts.slice(-11), { x, y, text, color, at: Date.now() }] }));
+      },
+      checkAchieve: () => {
+        const s = get();
+        // uniqueCrops: các loại nông sản từng sở hữu trong kho (bỏ hạt/mồi)
+        const uniqueCrops = new Set(Object.keys(s.inv).filter((k) => !k.startsWith('seed:') && !k.startsWith('bait:') && k !== 'feed' && k !== 'pesticide' && (s.inv[k] ?? 0) > 0));
+        const claimed = new Set(s.achSeen);
+        const extra = {
+          level: s.level, streak: s.daily.streak ?? 1,
+          goldenHarvests: s.goldenHarvests, animalCount: s.animals.length,
+          uniqueCrops, xu: s.xu,
+        };
+        const news = newAchievements(s.stats, extra, claimed);
+        if (news.length === 0) return;
+        let xuGain = 0, gemGain = 0;
+        for (const a of news) { xuGain += a.reward.xu ?? 0; gemGain += a.reward.gem ?? 0; }
+        set((st) => ({
+          achSeen: [...st.achSeen, ...news.map((a) => a.id)],
+          xu: st.xu + xuGain, gem: st.gem + gemGain,
+          stats: { ...st.stats, earned: st.stats.earned + xuGain },
+        }));
+        sfx.achieve();
+        for (const a of news) {
+          const rw = [a.reward.xu ? `+${a.reward.xu} xu` : '', a.reward.gem ? `+${a.reward.gem} gem` : ''].filter(Boolean).join(' ');
+          get().toast(`🏆 Thành tựu: ${a.name}! ${rw}`);
+        }
+      },
+      catchGameResult: (score) => {
+        const s = get();
+        const xu = Math.round(score * 8);
+        const gem = score >= 30 ? 1 : 0;
+        const best = score > s.catchGameBest;
+        const COOLDOWN = 60 * 60 * 1000; // 1 giờ; streak≥7 hoặc ≥50 cá → 10 phút
+        const cd = s.daily.streak >= 7 || s.stats.stockedFish >= 50 ? 10 * 60 * 1000 : COOLDOWN;
+        set((st) => ({
+          xu: st.xu + xu, gem: st.gem + gem,
+          catchGameBest: Math.max(st.catchGameBest, score),
+          catchGameCooldown: Date.now() + cd,
+          stats: { ...st.stats, earned: st.stats.earned + xu },
+        }));
+        sfx.finish(); sfx.coin();
+        get().toast(best
+          ? `🥇 KỶ LỤC MỚI ${score} điểm! +${xu} xu${gem ? ' +1 gem' : ''}`
+          : `🧺 Kết thúc ${score} điểm · +${xu} xu${gem ? ' +1 gem' : ''}`);
+        get().checkAchieve();
+        return { xu, gem, best };
+      },
       addInv: (pid, n) => set((s) => {
         const inv = { ...s.inv };
         inv[pid] = (inv[pid] || 0) + n;
@@ -539,11 +624,13 @@ export const useGame = create<GameState>()(
         if (nowMs0 - lastMidnightCheck > 2000) {
           lastMidnightCheck = nowMs0;
           if ((s.daily.date ?? '') !== todayKey(new Date(nowMs0))) {
-            set({ daily: { day: s.day, date: todayKey(new Date(nowMs0)), flags: {}, cats: [], quests: [] } });
+            const streak = s.daily.date === yesterdayKey() ? Math.max(1, s.daily.streak ?? 1) + 1 : 1;
+            set({ daily: { day: s.day, date: todayKey(new Date(nowMs0)), flags: {}, cats: [], quests: [], streak } });
             // đóng panel bảng cũ (nếu đang mở) để lần mở sau vẽ lại list mới
             const cur = get();
             if (cur.inAct?.furn === 'board') set({ inAct: null });
             get().toast('🌅 Ngày mới! Nhiệm vụ ngày đã làm mới!');
+            if (streak > 1) get().toast(`🔥 Chuỗi đăng nhập ${streak} ngày liên tiếp!`);
             void import('../net/account').then((m) => m.syncNow()).catch(() => {});
           }
         }
@@ -557,6 +644,11 @@ export const useGame = create<GameState>()(
         if (s.plotFx.length > 0) {
           const now = Date.now();
           if (now - s.plotFx[0].at > 1500) set({ plotFx: s.plotFx.filter((f) => now - f.at < 1500) });
+        }
+        // dọn chữ thưởng bay đã quá 1.5s
+        if (s.floatTexts.length > 0) {
+          const nowF = Date.now();
+          if (nowF - s.floatTexts[0].at > 1500) set({ floatTexts: s.floatTexts.filter((f) => nowF - f.at < 1500) });
         }
         let dayTime = s.dayTime + dt / DAY_LENGTH;
         let day = s.day;
@@ -620,7 +712,10 @@ export const useGame = create<GameState>()(
           const hunger = Math.max(0, f.hunger - dt * (100 / 900));
           let age = f.age;
           if (hunger > 20) age += dt;
-          if (age >= F.grow) { get().toast(`${F.name} đã lớn!`); sfx.catch_(); return { ...f, hunger, age, grown: true }; }
+          if (age >= F.grow) { get().toast(`${F.name} đã lớn!`); sfx.catch_(); changed = true; return { ...f, hunger, age, grown: true }; }
+          // giữ nguyên object cũ khi không đổi gì → tránh set() + ghi localStorage mỗi frame
+          if (hunger === f.hunger && age === f.age) return f;
+          changed = true;
           return { ...f, hunger, age };
         });
         // vật nuôi
@@ -679,14 +774,25 @@ export const useGame = create<GameState>()(
         } else if (pl.state === 'ready' && pl.crop) {
           const c = CROPS[pl.crop];
           if (!c) return;
-          get().addInv(pl.crop, 1);
+          // ✨ SỰ KIỆN VÀNG: 8% cây thu hoạch "lấp lánh" — thưởng thêm 1 đơn vị (giá nền giữ nguyên)
+          const golden = Math.random() < 0.08;
+          get().addInv(pl.crop, golden ? 2 : 1);
           const plots = s.plots.slice(); plots[i] = { ...pl, state: 'soil', crop: null, progress: 0, watered: false, waterLeft: 0, pest: false };
+          const pp = plotPos(i);
           set((st) => ({
             plots,
             stats: { ...st.stats, harvested: st.stats.harvested + 1 },
+            goldenHarvests: st.goldenHarvests + (golden ? 1 : 0),
             plotFx: [...st.plotFx.slice(-7), { plot: i, kind: 'harvest' as const, at: Date.now(), crop: pl.crop ?? undefined }],
+            floatTexts: [...st.floatTexts.slice(-11), {
+              x: pp.x, y: pp.y - pp.h / 2 - 8,
+              text: golden ? `+2 ${c.name} ✨` : `+1 ${c.name}`,
+              color: golden ? '#ffd54f' : '#dcedc8', at: Date.now(),
+            }],
           }));
-          sfx.harvest(); get().toast(`Thu hoạch +1 ${c.name}!`); get().addXP(c.xp); get().checkQuest();
+          if (golden) { sfx.golden(); get().toast(`✨ ${c.name} VÀNG! Thưởng thêm 1 ${c.name}!`); }
+          else { sfx.harvest(); get().toast(`Thu hoạch +1 ${c.name}!`); }
+          get().addXP(golden ? c.xp * 2 : c.xp); get().checkQuest(); get().checkAchieve();
         }
       },
 
@@ -961,7 +1067,7 @@ export const useGame = create<GameState>()(
           get().addInv(f.type, 1);
           const fishes = s.fishes.slice(); fishes.splice(idx, 1);
           set((st) => ({ fishes, stats: { ...st.stats, harvested: st.stats.harvested + 1, collectedAnimal: st.stats.collectedAnimal + 1 } }));
-          sfx.harvest(); get().toast(`Thu hoạch +1 ${F.name}!`); get().addXP(F.xp); get().checkQuest();
+          sfx.harvest(); get().toast(`Thu hoạch +1 ${F.name}!`); get().addXP(F.xp); get().checkQuest(); get().checkAchieve();
         }
       },
 
@@ -1245,7 +1351,7 @@ export const useGame = create<GameState>()(
         get().addInv(pid, -k);
         get().addXu(sellPrice(pid) * k);
         get().addXP(Math.min(40, k * 2));
-        sfx.coin(); get().toast(`+${sellPrice(pid) * k} xu!`); get().checkQuest();
+        sfx.coin(); get().toast(`+${sellPrice(pid) * k} xu!`); get().checkQuest(); get().checkAchieve();
       },
       sellAnimal: (uid) => {
         const s = get();
@@ -1397,6 +1503,7 @@ export const useGame = create<GameState>()(
           ownedCars: [], activeCar: null,
           quality: 'high', autoQuality: true, autoLevel: 'medium', resMode: 'auto', kem: false,
           modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, petFx: null, plotFx: [], toasts: [], scene: 'farm',
+          floatTexts: [], goldenHarvests: 0, lastCatchGameAt: 0, catchGameCooldown: 0,
           interiorId: null, inAct: null, baLove: 0, loveClaim: [], fundTotal: 0, fundClaim: [],
           daily: freshDaily(1),
           junkAt: 0, speedUntil: null, stageColor: '#ffd24d',
@@ -1411,9 +1518,12 @@ export const useGame = create<GameState>()(
       migrate: (persisted: unknown) => {
         const p = (persisted ?? {}) as Record<string, unknown>;
         let out: Record<string, unknown> = { ...(p as object) };
-        const d = p.daily as { date?: string } | undefined;
+        const d = p.daily as { date?: string; streak?: number } | undefined;
         if (d && !d.date) {
-          out = { ...out, daily: { ...(d as object), date: todayKey() } };
+          out = { ...out, daily: { ...(d as object), date: todayKey(), streak: 1 } };
+        } else if (d && d.date && typeof d.streak !== 'number') {
+          // save v3 chưa có streak → backfill về 1, tick sẽ tính lại đúng sau
+          out = { ...out, daily: { ...(d as object), streak: 1 } };
         }
         if (!out.wingLv || typeof out.wingLv !== 'object') {
           const wl: Record<string, number> = {};
@@ -1441,7 +1551,22 @@ export const useGame = create<GameState>()(
         ownedCars: s.ownedCars, activeCar: s.activeCar,
         quality: s.quality, autoQuality: s.autoQuality, resMode: s.resMode, viewH: s.viewH, kem: s.kem,
         stageColor: s.stageColor,
+        // ── game juice + thành tựu + minigame (persist để giữ tiến trình) ──
+        achSeen: s.achSeen, goldenHarvests: s.goldenHarvests, catchGameBest: s.catchGameBest,
       }),
+      // Custom storage: debounced write (max 1 write / 2s) để tránh localStorage I/O thrash
+      // State trong memory vẫn cập nhật đầy đủ mỗi frame; localStorage chỉ lag ~2s.
+      // Đọc vẫn đọc trực tiếp (không debounce) để đảm bảo khởi động đúng state.
+      storage: {
+        getItem: (name) => {
+          const v = localStorage.getItem(name);
+          return v ? JSON.parse(v) : null;
+        },
+        setItem: (_name, value) => {
+          debouncedSetItem(JSON.stringify(value));
+        },
+        removeItem: (name) => localStorage.removeItem(name),
+      },
     }
   )
 );

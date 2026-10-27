@@ -24,6 +24,8 @@ import MarketModal from './MarketModal';
 import BoardModal from './BoardModal';
 import WeddingModal from './WeddingModal';
 import SmithModal from './SmithModal';
+import AchModal from './AchModal';
+import CatchGameModal from './CatchGameModal';
 import { GameIcon } from './GameIcon';
 
 // Casino (sảnh + 5 bàn + logic bài) nặng — tải lười khi mở, nhẹ bundle lúc đăng nhập
@@ -52,6 +54,8 @@ export default function ModalHost() {
   else if (modal === 'board') { icon = 'mail'; title = '📌 BẢNG TIN LÀNG'; body = <BoardModal />; }
   else if (modal === 'smith') { icon = 'shop'; title = '🔨 LÒ RÈN THỊ TRẤN'; body = <SmithModal />; }
   else if (modal === 'wedding') { icon = 'quest'; title = '💒 NHÀ VĂN HÓA'; body = <WeddingModal />; }
+  else if (modal === 'ach') { icon = 'quest'; title = '🏆 THÀNH TỰU NÔNG TRẠI'; body = <AchModal />; }
+  else if (modal === 'catchgame') { icon = 'basket'; title = '🧺 BẮT RAU VÀNG'; body = <CatchGameModal />; }
   else if (modal === 'settings') { icon = 'quest'; title = 'CÀI ĐẶT'; body = <SettingsModal />; }
   else if (typeof modal === 'object' && modal.name === 'house') {
     const hn = modal.house === 'cafe' ? 'QUÁN CÀ PHÊ MÈO' : modal.house === 'stage' ? 'SÂN KHẤU SỰ KIỆN'
@@ -79,11 +83,12 @@ export default function ModalHost() {
         <motion.div
           initial={{ scale: 0.94, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, opacity: 0 }}
           className="pixel-panel w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden"
+          role="dialog" aria-modal="true" aria-label={title}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center bg-green-600 text-white px-4 py-2.5 font-pixel text-[13px] border-b-4 border-[#2b2117]">
             <span className="flex items-center gap-2"><GameIcon name={icon} size={22} />{title}</span>
-            <button onClick={() => setModal(null)} className="bg-red-500 border-2 border-black rounded-md w-8 h-8 flex items-center justify-center hover:bg-red-400">
+            <button onClick={() => setModal(null)} aria-label="Đóng" className="bg-red-500 border-2 border-black rounded-md w-8 h-8 flex items-center justify-center hover:bg-red-400">
               <X size={16} />
             </button>
           </div>

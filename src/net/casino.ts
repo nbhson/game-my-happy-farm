@@ -177,6 +177,7 @@ export const useCasino = create<CasinoStore>()((set, get) => ({
     bc = new BroadcastChannel('nongtrai-casino');
     bc.onmessage = (e) => handleLocalMsg(e.data);
     set({ transport: 'local', connected: true });
+    if (announceTimer !== null) clearInterval(announceTimer); // tránh chồng interval khi ensure lại
     announceTimer = window.setInterval(() => {
       // host quảng bá phòng waiting
       for (const r of localHostRooms.values()) {
@@ -191,7 +192,7 @@ export const useCasino = create<CasinoStore>()((set, get) => ({
       }
     }, 2000);
     void lanAvailable().then((ok) => {
-      if (!ok) return;
+      if (!ok || socket) return;
       try {
         socket = io({ transports: ['websocket', 'polling'] });
         socket.on('connect', () => {
@@ -209,6 +210,7 @@ export const useCasino = create<CasinoStore>()((set, get) => ({
           set({ error: p?.msg || 'Lỗi casino' });
           useGame.getState().toast(p?.msg || 'Lỗi casino');
         });
+        if (listTimer !== null) clearInterval(listTimer); // không chồng polling khi ensure lại
         listTimer = window.setInterval(() => {
           if (get().transport === 'socket' && !get().room) socket?.emit('casino:list');
         }, 3000);
@@ -293,7 +295,7 @@ export const useCasino = create<CasinoStore>()((set, get) => ({
     }
     // nếu đang chơi mà rời → mất cược (không hoàn)
     set({ room: null, rooms: [], lockedBet: 0, deducted: false, error: '' });
-    stopBotLoop();
+    stopBotLoop(); // botTimer dừng khi vào phòng; listTimer giữ (tự no-op trong phòng, tự resume khi rời)
   },
 
   addBot() {

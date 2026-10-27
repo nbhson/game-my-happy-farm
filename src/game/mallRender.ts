@@ -6,11 +6,13 @@ import {
   MALL_WOLF, MALL_XOSO, RACE_LINE, RACE_LOOP_TOTAL, RACE_ROAD_HALF, distToRaceLine, raceLoopPoint, mallTownGateCenter,
 } from './mall';
 import {
-  OUT, cloud, drawBench, drawBuilding, drawCarDealer, drawCasino,
+  OUT, drawBench, drawBuilding, drawCarDealer, drawCasino,
   drawCritters, drawGarage, drawLamp, drawLotterySeller, drawMapActors, drawMapGate, drawSakura,
   drawSkyFx, ell, flower, frame, grassTuft, setTQ, shadow, stone, stonePath,
+  TQ_HIGH, TQ_ULTRA,
   txt, type TownRenderState,
 } from './townRender';
+import { drawUltraPost, drawHighPost } from './ultra';
 import { drawBiteComboHUD, drawCatchPop, drawPlayerDetailed, drawSittingFisher, withDepth, type RenderState } from './render';
 import { drawSparkle } from './icons';
 
@@ -352,4 +354,11 @@ export function renderMall(ctx: CanvasRenderingContext2D, W: number, H: number, 
     { x: MALL_CASINO.x + MALL_CASINO.w / 2, y: MALL_CASINO.y + MALL_CASINO.h, r: 100 },
     { x: MALL_RACE.x + MALL_RACE.w / 2, y: MALL_RACE.y, r: 110 },
   ]);
+  // phủ post-processing cuối cùng (gọi sau drawSkyFx để nổi trên mọi lớp như town):
+  // ultra = điện ảnh đầy đủ; high = phủ nhẹ. Trước đây mall thiếu cả hai.
+  if (TQ_ULTRA) {
+    drawUltraPost(ctx, W, H, cam, t, { dayTime: dt, weather: s.weather ?? 'sunny', night });
+  } else if (TQ_HIGH) {
+    drawHighPost(ctx, W, H, cam, t, { dayTime: dt, weather: s.weather ?? 'sunny', night });
+  }
 }

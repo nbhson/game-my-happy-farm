@@ -26,7 +26,7 @@ export const CROPS: Record<string, CropDef> = {
   cachua:  { id: 'cachua',  name: 'Cà chua',     emoji: '', seedPrice: 60,   sell: 160,   grow: 240, xp: 22,  lv: 6,  desc: 'Mọng nước' },
   khoai:   { id: 'khoai',   name: 'Khoai tây',   emoji: '', seedPrice: 100,  sell: 260,   grow: 300, xp: 30,  lv: 9,  desc: 'Bùi béo' },
   bap:     { id: 'bap',     name: 'Bắp',         emoji: '', seedPrice: 150,  sell: 400,   grow: 380, xp: 42,  lv: 12, desc: 'Vàng óng' },
-  dualeo:  { id: 'dualeo',  name: 'Dưa leo',      emoji: '', seedPrice: 220,  sell: 580,   grow: 690, xp: 55,  lv: 16, desc: 'Giòn mát' },
+  dualeo:  { id: 'dualeo',  name: 'Dưa leo',      emoji: '', seedPrice: 220,  sell: 700,   grow: 690, xp: 55,  lv: 16, desc: 'Giòn mát' },
   catim:   { id: 'catim',   name: 'Cà tím',      emoji: '', seedPrice: 320,  sell: 850,   grow: 840, xp: 70,  lv: 20, desc: 'Bóng mượt' },
   dautay:  { id: 'dautay',  name: 'Dâu tây',     emoji: '', seedPrice: 450,  sell: 1250,  grow: 990, xp: 90,  lv: 25, desc: 'Chua ngọt' },
   duahau:  { id: 'duahau',  name: 'Dưa hấu',     emoji: '', seedPrice: 650,  sell: 1800,  grow: 1200, xp: 120, lv: 32, desc: 'Ngọt lịm ngày hè' },
@@ -40,7 +40,7 @@ export const CROPS: Record<string, CropDef> = {
   hanh:     { id: 'hanh',     name: 'Hành lá',   emoji: '🧅', seedPrice: 180,  sell: 480,   grow: 400, xp: 48,  lv: 14, desc: 'Thơm nức mũi' },
   mia:      { id: 'mia',      name: 'Mía',       emoji: '🎋', seedPrice: 380,  sell: 1050,  grow: 900, xp: 80,  lv: 22, desc: 'Ngọt lịm' },
   dauphong: { id: 'dauphong', name: 'Đậu phộng', emoji: '🥜', seedPrice: 550,  sell: 1500,  grow: 1080, xp: 105, lv: 28, desc: 'Bùi béo' },
-  thanhlog: { id: 'thanhlog', name: 'Thanh long', emoji: '🐉', seedPrice: 800,  sell: 2200,  grow: 1760, xp: 140, lv: 36, desc: 'Vỏ đỏ ruột trắng' },
+  thanhlog: { id: 'thanhlog', name: 'Thanh long', emoji: '🐉', seedPrice: 800,  sell: 2500,  grow: 1760, xp: 140, lv: 36, desc: 'Vỏ đỏ ruột trắng' },
   saurieng: { id: 'saurieng', name: 'Sầu riêng', emoji: '👑', seedPrice: 1200, sell: 3400,  grow: 2080, xp: 190, lv: 45, desc: 'Vua trái cây' },
   bo:       { id: 'bo',       name: 'Bơ',        emoji: '🥑', seedPrice: 1800, sell: 5200,  grow: 2400, xp: 240, lv: 58, desc: 'Béo ngậy' },
   mangcut:  { id: 'mangcut',  name: 'Măng cụt',  emoji: '🫐', seedPrice: 2800, sell: 8000,  grow: 3600, xp: 330, lv: 72, desc: 'Nữ hoàng trái cây' },
@@ -60,7 +60,7 @@ export const FISHES: Record<string, FishDef> = {
   cadieu:   { id: 'cadieu',   name: 'Cá diêu hồng', emoji: '🐟', babyPrice: 180,  sell: 520,   grow: 960, xp: 40,  lv: 8,  desc: 'Thịt ngọt' },
   catre:    { id: 'catre',    name: 'Cá trê',       emoji: '🐟', babyPrice: 300,  sell: 900,   grow: 1200, xp: 60,  lv: 12, desc: 'Râu dài' },
   luon:     { id: 'luon',     name: 'Lươn',         emoji: '🐍', babyPrice: 500,  sell: 1500,  grow: 1480, xp: 90,  lv: 20, desc: 'Trơn tuột' },
-  ech:      { id: 'ech',      name: 'Ếch',          emoji: '🐸', babyPrice: 850,  sell: 2500,  grow: 1800, xp: 125, lv: 30, desc: 'Đùi to' },
+  ech:      { id: 'ech',      name: 'Ếch',          emoji: '🐸', babyPrice: 850,  sell: 2750,  grow: 1800, xp: 125, lv: 30, desc: 'Đùi to' },
   cahoi:    { id: 'cahoi',    name: 'Cá hồi',       emoji: '🍣', babyPrice: 1500, sell: 4600,  grow: 2240, xp: 190, lv: 42, desc: 'Vượt thác' },
   tomhum:   { id: 'tomhum',   name: 'Tôm hùm',      emoji: '🦞', babyPrice: 2800, sell: 8600,  grow: 2800, xp: 300, lv: 60, desc: 'Càng khổng lồ' },
   cavang:   { id: 'cavang',   name: 'Cá vàng',      emoji: '🐠', babyPrice: 4000, sell: 12500, grow: 3200, xp: 420, lv: 75, desc: 'Cảnh quý tộc' },
@@ -68,18 +68,18 @@ export const FISHES: Record<string, FishDef> = {
 
 export const ANIMALS: Record<string, AnimalDef> = {
   chicken: { id: 'chicken', name: 'Gà',   emoji: '', babyPrice: 80,  product: 'Trứng',     productId: 'trung',    sell: 45,  grow: 270,  cycle: 45,  xp: 12, lv: 2,  desc: 'Đẻ trứng đều', max: 30 },
-  duck:    { id: 'duck',    name: 'Vịt',  emoji: '', babyPrice: 150, product: 'Trứng vịt',  productId: 'trungvit', sell: 70,  grow: 330, cycle: 55,  xp: 18, lv: 6,  desc: 'Bơi lội giỏi', max: 15 },
-  cow:     { id: 'cow',     name: 'Bò sữa', emoji: '', babyPrice: 250, product: 'Sữa',      productId: 'sua',      sell: 120, grow: 540, cycle: 75,  xp: 28, lv: 4,  desc: 'Cho sữa ngọt', max: 20 },
+  duck:    { id: 'duck',    name: 'Vịt',  emoji: '', babyPrice: 150, product: 'Trứng vịt',  productId: 'trungvit', sell: 110, grow: 330, cycle: 55,  xp: 18, lv: 6,  desc: 'Bơi lội giỏi', max: 15 },
+  cow:     { id: 'cow',     name: 'Bò sữa', emoji: '', babyPrice: 250, product: 'Sữa',      productId: 'sua',      sell: 140, grow: 540, cycle: 75,  xp: 28, lv: 4,  desc: 'Cho sữa ngọt', max: 20 },
   pig:     { id: 'pig',     name: 'Heo',  emoji: '', babyPrice: 280, product: 'Thịt',      productId: 'thit',     sell: 420, grow: 720, cycle: 150, xp: 50, lv: 5,  desc: 'Lớn nhanh', max: 20 },
-  sheep:   { id: 'sheep',   name: 'Cừu',  emoji: '', babyPrice: 600, product: 'Len',        productId: 'len',      sell: 300, grow: 780, cycle: 120, xp: 70, lv: 12, desc: 'Len mềm ấm', max: 12 },
+  sheep:   { id: 'sheep',   name: 'Cừu',  emoji: '', babyPrice: 600, product: 'Len',        productId: 'len',      sell: 360, grow: 780, cycle: 120, xp: 70, lv: 12, desc: 'Len mềm ấm', max: 12 },
   // --- vật nuôi mới: chuồng gà-vịt (nhỏ) + trại bò-heo-cừu (lớn) ---
   cut:     { id: 'cut',     name: 'Chim cút', emoji: '🐦', babyPrice: 120, product: 'Trứng cút',  productId: 'trungcut',  sell: 80,  grow: 240,  cycle: 40,  xp: 10, lv: 3,  desc: 'Nhỏ mà đẻ khỏe', max: 25 },
   bocau:   { id: 'bocau',   name: 'Bồ câu',   emoji: '🕊️', babyPrice: 180, product: 'Trứng chim', productId: 'trungcau',  sell: 110, grow: 300, cycle: 50,  xp: 15, lv: 5,  desc: 'Đưa thư siêu tốc', max: 20 },
   rabbit:  { id: 'rabbit',  name: 'Thỏ',      emoji: '🐰', babyPrice: 200, product: 'Lông thỏ',   productId: 'longtho',   sell: 140, grow: 360, cycle: 60,  xp: 22, lv: 7,  desc: 'Nhảy tung tăng', max: 20 },
-  goose:   { id: 'goose',   name: 'Ngỗng',    emoji: '🪿', babyPrice: 350, product: 'Trứng ngỗng',productId: 'trungngong',sell: 160, grow: 480, cycle: 80,  xp: 35, lv: 10, desc: 'Trông nhà giỏi', max: 12 },
-  ong:     { id: 'ong',     name: 'Ong mật',  emoji: '🐝', babyPrice: 500, product: 'Mật ong',    productId: 'matong',    sell: 500, grow: 600, cycle: 100, xp: 60, lv: 16, desc: 'Chăm chỉ hút mật', max: 16 },
-  goat:    { id: 'goat',    name: 'Dê',       emoji: '🐐', babyPrice: 700, product: 'Sữa dê',     productId: 'suade',     sell: 350, grow: 840, cycle: 130, xp: 80, lv: 14, desc: 'Leo trèo giỏi', max: 12 },
-  buffalo: { id: 'buffalo', name: 'Trâu',     emoji: '🐃', babyPrice: 1200, product: 'Sữa trâu',  productId: 'suatrau',   sell: 550, grow: 1080, cycle: 180, xp: 130, lv: 22, desc: 'Đầu cơ nghiệp', max: 10 },
+  goose:   { id: 'goose',   name: 'Ngỗng',    emoji: '🪿', babyPrice: 350, product: 'Trứng ngỗng',productId: 'trungngong',sell: 200, grow: 480, cycle: 80,  xp: 35, lv: 10, desc: 'Trông nhà giỏi', max: 12 },
+  ong:     { id: 'ong',     name: 'Ong mật',  emoji: '🐝', babyPrice: 500, product: 'Mật ong',    productId: 'matong',    sell: 380, grow: 600, cycle: 100, xp: 60, lv: 16, desc: 'Chăm chỉ hút mật', max: 16 },
+  goat:    { id: 'goat',    name: 'Dê',       emoji: '🐐', babyPrice: 700, product: 'Sữa dê',     productId: 'suade',     sell: 420, grow: 840, cycle: 130, xp: 80, lv: 14, desc: 'Leo trèo giỏi', max: 12 },
+  buffalo: { id: 'buffalo', name: 'Trâu',     emoji: '🐃', babyPrice: 1200, product: 'Sữa trâu',  productId: 'suatrau',   sell: 700, grow: 1080, cycle: 180, xp: 130, lv: 22, desc: 'Đầu cơ nghiệp', max: 10 },
 };
 
 /** Giá bán 1 con vật nuôi đã lớn = 180% giá mua con non (nuôi lớn rồi bán mới có lãi) */
@@ -149,17 +149,17 @@ export function sellPrice(pid: string): number {
   if (CROPS[pid]) return CROPS[pid].sell;
   if (FISHES[pid]) return FISHES[pid].sell;
   if (pid === 'trung') return 45;
-  if (pid === 'trungvit') return 70;
-  if (pid === 'sua') return 120;
+  if (pid === 'trungvit') return 110;   // was 70 — vịt lv6 từng yếu hơn cả gà lv2
+  if (pid === 'sua') return 140;        // was 120 — bò lv4 yếu hơn cút lv3
   if (pid === 'thit') return 420;
-  if (pid === 'len') return 300;
+  if (pid === 'len') return 360;        // was 300 — cừu lv12 yếu hơn heo lv5
   if (pid === 'longtho') return 140;
-  if (pid === 'suade') return 350;
-  if (pid === 'suatrau') return 550;
-  if (pid === 'trungngong') return 160;
+  if (pid === 'suade') return 420;      // was 350 — dê lv14 yếu hơn cừu
+  if (pid === 'suatrau') return 700;    // was 550 — trâu lv22 phải mạnh nhất
+  if (pid === 'trungngong') return 200; // was 160 — ngỗng lv10 yếu hơn thỏ lv7
   if (pid === 'trungcau') return 110;
   if (pid === 'trungcut') return 80;
-  if (pid === 'matong') return 500;
+  if (pid === 'matong') return 380;     // was 500 — ong lv16 từng OP gấp 2 trâu
   if (pid === 'feed') return 7;
   if (pid === 'feedPro') return 25;
   if (pid === 'bait') return 5;

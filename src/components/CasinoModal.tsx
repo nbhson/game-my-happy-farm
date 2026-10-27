@@ -1,7 +1,7 @@
 // ===== Casino modal: sảnh + phòng + 5 bàn (tiến lên / bài cào / xì dách / caro / cờ vua) =====
 import { useEffect, useMemo, useState } from 'react';
 import { useGame } from '../game/store';
-import { CASINO_BAICAO_MS, CASINO_GAMES, CASINO_MAX_BET, CASINO_MIN_BET, CASINO_TURN_MS, useCasino, type CasinoGame, type CasinoRoom } from '../net/casino';
+import { CASINO_BAICAO_MS, CASINO_GAMES, CASINO_MAX_BET, CASINO_MIN_BET, CASINO_TURN_MS, useCasino, type CasinoGame } from '../net/casino';
 import { getPresenceId } from '../net/session';
 import { cardLabel, isRed, type Card } from '../game/casino/cards';
 import { comboOf } from '../game/casino/tienlen';

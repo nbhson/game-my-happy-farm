@@ -6,10 +6,10 @@ import { ANIMALS, COOP_TYPES, BARN_TYPES, CROPS, FISHES, MAX_POND, OUTFITS, SHIR
 import type { Animal, CoopCap, GraphicsQuality, Plot, PondFish, WeatherKind } from './types';
 import type { BiteDir } from './data';
 import type { FishIconId } from './icons';
-import { BARN, COOP, FARM, PEN_MB, PIERS, POND, RIVER, RIVER_WATER_Y, ROAD_H, ROAD_V, SHOPD, TILE, TOWN_GATE, WORLD, plotPos, roadHCenter, roadVCenter, townGateCenter } from './world';
+import { BARN, COOP, FARM, PEN_MB, PIERS, POND, RIVER, RIVER_WATER_Y, ROAD_H, ROAD_V, SHOPD, TILE, WORLD, plotPos, roadHCenter, roadVCenter, townGateCenter } from './world';
 import { animalPos, fishPos, KEM_UID, PETS, petPos } from './systems';
 import { drawBasket, drawChickenHead, drawCowHead, drawCropGeneric, drawDrop, drawEnvelope, drawExclaimBadge, drawFeedBowl, drawFish, drawHoeMini, drawLock, drawMoon, drawPumpkin, drawSeedDot, drawSleepZ, drawSparkle, drawSprout, drawStar, drawSun, drawTreeFruit, setFxLevel } from './icons';
-import { drawUltraPost, isUltra } from './ultra';
+import { drawUltraPost, drawHighPost, isUltra } from './ultra';
 
 export interface VisitorDraw {
   x: number; y: number; dir: number; moving: boolean;
@@ -47,6 +47,8 @@ export interface RenderState {
   carId?: string | null;
   /** hiệu ứng động tác trên ô ruộng (transient, store tự dọn) */
   plotFx?: { plot: number; kind: 'hoe' | 'plant' | 'water' | 'spray' | 'harvest'; at: number; crop?: string }[];
+  /** chữ thưởng bay lên (+1 Cà rốt / +120 xu / +2 ✨) — transient, store tự dọn */
+  floatTexts?: { x: number; y: number; text: string; color: string; at: number }[];
   /** cấp đồ họa: high đủ hiệu ứng / medium giảm một nửa / low tắt bóng + tia lửa + ambient */
   quality?: GraphicsQuality;
   /** hiệu ứng bị chó cắn khi hái trộm (epoch ms hết hạn) — vẽ GÂU! + sao xoay trên đầu */
@@ -2629,7 +2631,7 @@ function drawTreeDetailed(ctx: CanvasRenderingContext2D, x: number, y: number, s
   rr(ctx, tx + tw - 6 * sc, y - th + 4 * sc, 3 * sc, th - 8 * sc, 1.5 * sc); ctx.fillStyle = 'rgba(255,235,200,.55)'; ctx.fill();
   // vân vỏ xoắn
   ctx.strokeStyle = 'rgba(70,40,15,.5)'; ctx.lineWidth = 1.4 * sc; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(x - 3 * sc, y - 6 * sc); ctx.quadraticCurveTo(x + 1 * sc, y - 24 * sc, x - 3 * sc, y - 42 * sc); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - 3 * sc, y - 6 * sc); ctx.quadraticCurveTo(x + Number(sc), y - 24 * sc, x - 3 * sc, y - 42 * sc); ctx.stroke();
   ctx.fillStyle = '#4a2c14';
   ctx.beginPath(); ctx.ellipse(x + 3.5 * sc, y - 30 * sc, 1.6 * sc, 2.6 * sc, 0.3, 0, 7); ctx.fill();
   // hốc cây kawaii
@@ -3334,7 +3336,7 @@ export function drawPlayerDetailed(ctx: CanvasRenderingContext2D, X: number, Y: 
     ell(ctx, X - dir * 10, Y + 19, 4.4, 2.4);
     ell(ctx, X - dir * 16, Y + 18, 2.6, 1.6);
   }
-  const bob = moving ? Math.abs(Math.sin(t * 12)) * -2.6 : Math.sin(t * 2) * 1;
+  const bob = moving ? Math.abs(Math.sin(t * 12)) * -2.6 : Number(Math.sin(t * 2));
   const step = moving ? Math.sin(t * 12) * 5 : 0;
   // --- trang phục đang mặc ---
   const fit = outfit ?? {};
@@ -5644,7 +5646,7 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
   drawTreeDetailed(ctx, 150 - cam.x, 120 - cam.y, 1.15 * depthScale(120), t + 2, null);
   drawTreeDetailed(ctx, 1500 - cam.x, 660 - cam.y, 1.45 * depthScale(660), t + 1, 'orange');
   drawTreeDetailed(ctx, 1480 - cam.x, 900 - cam.y, 1.15 * depthScale(900), t + 3, null);
-  drawTreeDetailed(ctx, 950 - cam.x, 110 - cam.y, 1.0 * depthScale(110), t + 4, null);
+  drawTreeDetailed(ctx, 950 - cam.x, 110 - cam.y, Number(depthScale(110)), t + 4, null);
   drawTreeDetailed(ctx, 60 - cam.x, 980 - cam.y, 1.05 * depthScale(980), t + 5, 'mango');
   // hòm thư
   drawMailbox(ctx, PEN_MB.pond.x - cam.x, PEN_MB.pond.y - cam.y, t, 'AO CÁ');
@@ -5806,6 +5808,19 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
         if (age < 0 || age > 1300) continue;
         drawPlotFx(ctx, X, Y, pp.w, pp.h, fx.kind, age / 1300, t, fx.crop);
       }
+    }
+  }
+
+  // --- chữ thưởng bay lên (+1 Cà rốt / +2 ✨ / +120 xu) — mờ dần, trôi lên ---
+  if (s.floatTexts) {
+    for (const f of s.floatTexts) {
+      const age = nowMs - f.at;
+      if (age < 0 || age > 1400) continue;
+      const p = age / 1400;
+      ctx.save();
+      ctx.globalAlpha = 1 - p;
+      txt(ctx, f.text, f.x - cam.x, f.y - cam.y - p * 44, 13, f.color);
+      ctx.restore();
     }
   }
 
@@ -6031,6 +6046,10 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
   if (isUltra(s.quality)) {
     const dtU = s.dayTime;
     drawUltraPost(ctx, W, H, cam, t, { dayTime: dtU, weather: s.weather ?? 'sunny', night: dtU < 0.2 || dtU > 0.82 });
+  } else if (s.quality === 'high') {
+    // CAO: phủ nhẹ — grading + bóng mây + bụi/hoa thưa + vignette
+    const dtH = s.dayTime;
+    drawHighPost(ctx, W, H, cam, t, { dayTime: dtH, weather: s.weather ?? 'sunny', night: dtH < 0.2 || dtH > 0.82 });
   }
   // HUD mini-game câu cá vẽ TRỰC TIẾP trong canvas (fallback khi overlay DOM bị che):
   // luôn nằm giữa màn hình theo đơn vị logic nên màn to/nhỏ đều thấy.
@@ -6118,7 +6137,7 @@ export function drawSittingFisher(
   ctx.strokeStyle = 'rgba(140,95,40,.5)'; ctx.lineWidth = 1.2;
   ctx.beginPath(); ctx.ellipse(X, Y + 12, 15, 5, 0, 0, 7); ctx.stroke();
   ctx.beginPath(); ctx.ellipse(X, Y + 12, 9, 3, 0, 0, 7); ctx.stroke();
-  const bob = Math.sin(t * 2) * 1;
+  const bob = Number(Math.sin(t * 2));
   ctx.save(); ctx.translate(X, Y + bob);
   // chân xếp bằng anime + dép viền (màu theo quần/giày đang mặc)
   for (const ox of [-17, 3]) {

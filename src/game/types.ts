@@ -51,7 +51,7 @@ export interface Stats {
 
 export type ModalKind =
   | null
-  | 'shop' | 'bag' | 'quest' | 'help' | 'village' | 'townChat' | 'townEmote' | 'casino' | 'gift' | 'outfit' | 'settings' | 'lottery' | 'carshop' | 'race' | 'market' | 'board' | 'wedding' | 'smith'
+  | 'shop' | 'bag' | 'quest' | 'help' | 'village' | 'townChat' | 'townEmote' | 'casino' | 'gift' | 'outfit' | 'settings' | 'lottery' | 'carshop' | 'race' | 'market' | 'board' | 'wedding' | 'smith' | 'ach' | 'catchgame'
   | { name: 'seed'; plot: number }
   | { name: 'stock' }
   | { name: 'bait'; pier: number }
@@ -82,7 +82,10 @@ export interface InAct {
 }
 export interface DailyQuestState { id: string; from: number; done: boolean; claimed: boolean }
 /** Daily reset theo ngày thực (00:00 local): `date` = YYYY-MM-DD, `day` giữ lại để tương thích save cũ */
-export interface DailyState { day: number; date: string; flags: Record<string, boolean>; cats: string[]; quests: DailyQuestState[] }
+export interface DailyState { day: number; date: string; flags: Record<string, boolean>; cats: string[]; quests: DailyQuestState[]; streak: number }
+
+/** Chữ thưởng bay lên trên canvas (vị trí world, mờ dần ~1.4s) */
+export interface FloatText { x: number; y: number; text: string; color: string; at: number }
 
 /** Cảm xúc / hành động realtime ở thị trấn */
 export type TownEmote = 'wave' | 'dance' | 'sit' | 'laugh' | 'heart' | 'sleep' | 'angry' | 'clap'

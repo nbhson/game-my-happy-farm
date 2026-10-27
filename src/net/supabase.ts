@@ -50,7 +50,9 @@ export class SupabaseTransport implements NetTransport {
           const prev = this.players.get(id);
           next.set(id, {
             id, name: m.name, avatar: m.avatar, code: m.code ?? prev?.code,
-            x: m.x, y: m.y,
+            // validate toạ độ từ mạng: tránh NaN/undefined làm vỡ render + hypot
+            x: typeof m.x === 'number' && Number.isFinite(m.x) ? m.x : (prev?.x ?? 700),
+            y: typeof m.y === 'number' && Number.isFinite(m.y) ? m.y : (prev?.y ?? 600),
             dir: m.dir, moving: m.moving,
             bubble: m.bubble ?? prev?.bubble,
             bubbleAt: m.bubble ? now : prev?.bubbleAt,

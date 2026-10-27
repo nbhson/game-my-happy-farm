@@ -23,6 +23,9 @@ export class SocketTransport implements NetTransport {
 
   connect(self: SelfInfo) {
     this.self = self;
+    // chống chồng handler khi connect lại (reconnect/rejoin) — events sẽ fire N lần nếu không dọn
+    this.socket?.removeAllListeners();
+    this.socket?.disconnect();
     this.socket = io({ transports: ['websocket', 'polling'] });
     this.socket.on('connect', () => {
       this.emitStatus(true);

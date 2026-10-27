@@ -53,4 +53,14 @@ export const sfx = {
   whoosh() { beep(280, 0.16, 'sine', 0.16, 480); },
   /** trứng vỡ cái bẹp */
   splat() { beep(260, 0.1, 'square', 0.2, -140); later(() => beep(170, 0.14, 'sawtooth', 0.12, -70), 60); },
+  /** nông sản VÀNG: chuỗi "tinh tinh" lấp lánh cao tần — cảm giác trúng thưởng */
+  golden() { [1046, 1318, 1568, 2093].forEach((f, i) => { later(() => beep(f, 0.14, 'triangle', 0.16), i * 70); }); later(() => beep(2637, 0.2, 'sine', 0.12), 300); },
+  /** thành tựu mở khóa: fanfare 3 nốt trầm→vang */
+  achieve() { beep(392, 0.14, 'triangle', 0.16); later(() => beep(523, 0.14, 'triangle', 0.16), 120); later(() => { beep(784, 0.3, 'triangle', 0.18); beep(988, 0.3, 'sine', 0.1); }, 240); },
+  /** bắt được rau trong minigame: pop ngắn vui tai */
+  pop() { beep(700 + Math.random() * 300, 0.06, 'triangle', 0.16, 200); },
+  /** bắt trúng rau thối: tiếng bục buồn */
+  ick() { beep(180, 0.16, 'sawtooth', 0.18, -60); },
+  /** kết thúc minigame: điểm tổng kết */
+  finish() { [659, 784, 1046].forEach((f, i) => later(() => beep(f, 0.16, 'square', 0.14), i * 110)); },
 };

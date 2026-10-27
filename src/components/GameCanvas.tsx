@@ -3,8 +3,8 @@ import { useGame, VIEW_H_MAX } from '../game/store';
 import { useVillage, farmVisible, gameMe, visiblePlayers } from '../net/village';
 import type { InteractTarget } from '../game/types';
 import { FARM_GATE_SPAWN, PIERS, WORLD, isBlocked, plotPos } from '../game/world';
-import { FARM_GATE, MALL_GATE, TOWN, TOWN_PROPS, TOWN_SPAWN, isTownBlocked } from '../game/town';
-import { MALL, MALL_PIERS, MALL_PROPS, MALL_SPAWN, RACE_CPS, RACE_CP_R, isMallBlocked, isOnRaceTrack, mallTownGateCenter } from '../game/mall';
+import { TOWN, TOWN_PROPS, TOWN_SPAWN, isTownBlocked } from '../game/town';
+import { MALL, MALL_PIERS, MALL_PROPS, MALL_SPAWN, RACE_CPS, RACE_CP_R, isMallBlocked, isOnRaceTrack } from '../game/mall';
 import { CARS, MAX_PLOTS } from '../game/data';
 import { KEM_UID, nearestInteract, nearestMallInteract, nearestPet, nearestStealPlot, nearestTownInteract } from '../game/systems';
 import { renderWorld, type VisitorDraw } from '../game/render';
@@ -822,6 +822,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
           carKind: st.activeCar ? CARS[st.activeCar]?.kind ?? null : null,
           carId: st.activeCar ?? null,
           plotFx: st.plotFx,
+          floatTexts: st.floatTexts,
           quality: effQ,
           thiefBite: st.thiefBiteUntil,
           petFx: st.petFx,
@@ -920,6 +921,8 @@ export default function GameCanvas({ target, onTarget }: Props) {
         width={960}
         height={600}
         onPointerDown={onPointer}
+        role="img"
+        aria-label="Bản đồ game nông trại — nhấn giữ hoặc vuốt để di chuyển và tương tác với ô đất, ao cá, chuồng trại"
         className="border-4 border-black bg-[#7ec850] cursor-pointer block"
       />
       {target && !fishingSpot && <InteractHint target={target} />}
@@ -936,6 +939,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
       <div className="absolute right-3 bottom-3 flex gap-2 md:hidden" style={{ marginBottom: 'env(safe-area-inset-bottom)' }}>
         <button
           className="w-14 h-14 rounded-full text-xl font-black bg-yellow-300 border-[3px] border-[#2b2117] shadow-pixel active:scale-95 touch-manipulation select-none"
+          aria-label="Tương tác với vật đang đứng cạnh (E)"
           onClick={() => doInteractWith(targetRef.current)}
         >
           E

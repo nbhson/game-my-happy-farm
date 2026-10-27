@@ -1,7 +1,7 @@
 // ===== Interact system: tìm đối tượng gần player nhất =====
 import type { Animal, InteractTarget, PondFish } from './types';
 import { ANIMALS, COOP_TYPES, CROPS, FISHES, plotCost, plotReq } from './data';
-import { BARN, COOP, PEN_MB, PIERS, SHOPD, POND, ROAD_H, ROAD_V, TOWN_GATE, isBlocked, pondInner, plotPos, RIVER_WATER_Y, roadHCenter, roadVCenter } from './world';
+import { BARN, COOP, PEN_MB, PIERS, SHOPD, POND, ROAD_V, TOWN_GATE, isBlocked, pondInner, plotPos, RIVER_WATER_Y, roadHCenter, roadVCenter } from './world';
 import { FARM_GATE, TOWN_PROPS, farmGateCenter, mallGateCenter } from './town';
 import { MALL_PIERS, MALL_PROPS, mallTownGateCenter } from './mall';
 

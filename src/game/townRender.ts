@@ -8,9 +8,9 @@ import {
   TOWN, TOWN_CAFE, TOWN_GARDEN, TOWN_HALL, TOWN_HOUSE1, TOWN_HOUSE2, TOWN_SMITH,
   TOWN_STAGE, farmGateCenter, mallGateCenter, marketSlotPos,
 } from './town';
-import { computePairOffsets, drawActionFx, drawBikeSide, drawEggThrow, drawKem, drawKiki, drawMimi, drawMotoSide, drawPairFx, drawParkedCar, drawPlayerDetailed, type PairActor, type VisitorDraw } from './render';
+import { computePairOffsets, drawActionFx, drawBikeSide, drawEggThrow, drawKem, drawKiki, drawMimi, drawMotoSide, drawPairFx, drawPlayerDetailed, type PairActor, type VisitorDraw } from './render';
 import { drawMoon, drawSparkle, drawSun, setFxLevel } from './icons';
-import { drawUltraPost, isUltra } from './ultra';
+import { drawUltraPost, drawHighPost, isUltra, isHigh } from './ultra';
 
 export interface TownRenderState {
   player: { x: number; y: number; dir: number; moving: boolean; tx: number | null; ty: number | null; name: string };
@@ -54,6 +54,8 @@ export interface TownRenderState {
 // ===== Cấp đồ họa: renderTown đặt mỗi frame =====
 let TQ_LOW = false;
 let TQ_MED = false;
+/** cao: phủ hiệu ứng nhẹ (không god rays/flare/chim/sao như ultra) */
+export let TQ_HIGH = false;
 /** ultra: giữ full hiệu ứng high + phủ điện ảnh cuối drawSkyFx */
 export let TQ_ULTRA = false;
 
@@ -61,6 +63,7 @@ export let TQ_ULTRA = false;
 export function setTQ(q: string) {
   TQ_LOW = q === 'low';
   TQ_MED = q === 'medium';
+  TQ_HIGH = isHigh(q);
   TQ_ULTRA = isUltra(q);
   setFxLevel(TQ_LOW ? 0 : TQ_MED ? 1 : 2);
 }
@@ -1076,7 +1079,7 @@ function drawBuildingExtra(
     }
     // mèo mướp nằm dài trên mái hiên
     {
-      const mx = cx - 52, my = dy - 84 + Math.sin(t * 1.4) * 1;
+      const mx = cx - 52, my = dy - 84 + Number(Math.sin(t * 1.4));
       const tailWag = Math.sin(t * 3) * 4;
       ctx.strokeStyle = OUT; ctx.lineWidth = 6; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(mx + 20, my); ctx.quadraticCurveTo(mx + 32, my - 2, mx + 30, my - 12 + tailWag); ctx.stroke();
@@ -2276,6 +2279,9 @@ export function drawSkyFx(
   // ULTRA: phủ điện ảnh dùng chung farm/town/mall (gọi sau cùng để nổi trên mọi lớp)
   if (TQ_ULTRA) {
     drawUltraPost(ctx, W, H, cam, t, { dayTime: dt, weather: s.weather ?? 'sunny', night });
+  } else if (TQ_HIGH) {
+    // CAO: phủ nhẹ — grading + bóng mây + bụi/hoa thưa + vignette
+    drawHighPost(ctx, W, H, cam, t, { dayTime: dt, weather: s.weather ?? 'sunny', night });
   }
 }
 
@@ -2463,7 +2469,7 @@ function drawBoardSign(ctx: CanvasRenderingContext2D, cam: { x: number; y: numbe
   const notes: [number, number, string][] = [[-22, -70, '#fff59d'], [0, -66, '#ffccbc'], [22, -70, '#c5e1a5'], [-11, -52, '#b3e5fc'], [12, -52, '#e1bee7']];
   for (const [ox, oy, col] of notes) {
     ctx.fillStyle = col;
-    const wob = Math.sin(t * 1.5 + ox) * 1;
+    const wob = Number(Math.sin(t * 1.5 + ox));
     ctx.fillRect(X + ox - 8, Y + oy - 6 + wob, 16, 12);
     ctx.lineWidth = 1.4; ctx.strokeStyle = OUT;
     ctx.strokeRect(X + ox - 8, Y + oy - 6 + wob, 16, 12);

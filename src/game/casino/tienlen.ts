@@ -151,7 +151,7 @@ function everyOneElsePassed(st: TienLenState, me: string): boolean {
 export function nextTurn(st: TienLenState, from: string): string {
   // người kế tiếp còn bài
   const n = st.order.length;
-  let i = st.order.indexOf(from);
+  const i = st.order.indexOf(from);
   for (let k = 1; k <= n; k++) {
     const id = st.order[(i + k) % n];
     if ((st.hands[id]?.length ?? 0) > 0) return id;

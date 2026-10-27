@@ -27,7 +27,7 @@ function Drop({ title, triggerClass, trigger, align = 'right', children }: {
   }, [open ]);
   return (
     <div ref={ref} className="relative shrink-0">
-      <button type="button" title={title} onClick={() => setOpen((o) => !o)} className={triggerClass}>{trigger}</button>
+      <button type="button" title={title} aria-label={title || undefined} aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((o) => !o)} className={triggerClass}>{trigger}</button>
       {open && (
         <MenuCtx.Provider value={{ close: () => setOpen(false) }}>
           <div className={`absolute top-full mt-1.5 z-50 w-max min-w-[215px] max-w-[260px] bg-[#fff8dc] border-[3px] border-[#2b2117] rounded-xl shadow-pixel p-1.5 flex flex-col gap-1 text-black ${align === 'right' ? 'right-0' : 'left-0'}`}>
@@ -66,12 +66,13 @@ function PlayMenu({ compact }: { compact?: boolean }) {
     <Drop
       title="Trò chơi khu mua sắm: Casino, Vé số, Đua xe, Ma sói"
       triggerClass={compact
-        ? 'pixel-btn !text-[11px] !px-2 !py-2 !bg-purple-600 !text-white shrink-0 flex items-center gap-0.5'
-        : 'pixel-btn !text-[11px] !bg-purple-600 !text-white flex items-center gap-1'}
+        ? 'pixel-btn !text-[11px] !px-2 !py-2 !bg-purple-700 !text-white shrink-0 flex items-center gap-0.5'
+        : 'pixel-btn !text-[11px] !bg-purple-700 !text-white flex items-center gap-1'}
       trigger={<>🎮{compact ? null : ' Chơi'}<ChevronDown size={compact ? 13 : 14} /></>}
     >
       <Item icon="🎰" label="Casino" desc="Tiến lên • Bài cào • Xì dách • Caro • Cờ vua" onClick={() => s.setModal('casino')} />
       <Item icon="🎫" label="Vé số" desc="50 xu/vé — sổ mỗi 5 phút" onClick={() => s.setModal('lottery')} />
+      <Item icon="🧺" label="Bắt rau vàng" desc="30 giây bắt rau rơi — điểm đổi xu" onClick={() => s.setModal('catchgame')} />
       <Item icon="🏁" label="Đua xe" desc="Tối đa 5 tay lái • vô địch +300 xu +1 gem" onClick={() => s.setModal('race')} />
       <Item icon="🐺" label="Ma sói" desc="5–12 người • đêm hành động, ngày bỏ phiếu" onClick={() => s.setModal({ name: 'wolf' })} />
     </Drop>
@@ -142,8 +143,8 @@ function TownShopMenu({ compact }: { compact?: boolean }) {
     <Drop
       title="Sang Khu mua sắm & Giải trí (góc đông-bắc)"
       triggerClass={compact
-        ? 'pixel-btn !text-[11px] !px-2 !py-2 !text-white shrink-0 flex items-center gap-0.5 !bg-pink-500'
-        : 'pixel-btn !text-[11px] !text-white flex items-center gap-1 !bg-pink-500'}
+        ? 'pixel-btn !text-[11px] !px-2 !py-2 !text-white shrink-0 flex items-center gap-0.5 !bg-pink-700'
+        : 'pixel-btn !text-[11px] !text-white flex items-center gap-1 !bg-pink-700'}
       trigger={<>🎡{compact ? null : ' Khu mua sắm'}<ChevronDown size={compact ? 13 : 14} /></>}
     >
       <Item icon="🎡" label="Khu Mua sắm & Giải trí" desc="Gara • Casino • Vé số • Sông câu • Đua xe • Sói" onClick={() => goToMall()} />
@@ -158,8 +159,8 @@ function MallShopMenu({ compact }: { compact?: boolean }) {
     <Drop
       title={s.activeCar ? 'Đang lái xe — bấm để mở Gara / xuống xe' : 'Mua sắm: Thời trang, Chợ xe (phím X)'}
       triggerClass={compact
-        ? `pixel-btn !text-[11px] !px-2 !py-2 !text-white shrink-0 flex items-center gap-0.5 ${s.activeCar ? '!bg-yellow-500' : '!bg-pink-500'}`
-        : `pixel-btn !text-[11px] !text-white flex items-center gap-1 ${s.activeCar ? '!bg-yellow-500' : '!bg-pink-500'}`}
+        ? `pixel-btn !text-[11px] !px-2 !py-2 shrink-0 flex items-center gap-0.5 ${s.activeCar ? '!bg-yellow-500 !text-black' : '!bg-pink-700 !text-white'}`
+        : `pixel-btn !text-[11px] flex items-center gap-1 ${s.activeCar ? '!bg-yellow-500 !text-black' : '!bg-pink-700 !text-white'}`}
       trigger={<>🛍️{compact ? null : (s.activeCar ? ' Đang lái…' : ' Mua sắm')}<ChevronDown size={compact ? 13 : 14} /></>}
     >
       <Item icon="👗" label="Thời trang" desc="Áo quần nón tóc giày" onClick={() => s.setModal('outfit')} />
@@ -182,7 +183,7 @@ function SocialMenu({ compact }: { compact?: boolean }) {
           {compact ? <MessageCircle size={18} /> : <>💬 Xã hội</>}
           <ChevronDown size={compact ? 12 : 14} />
           {online > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 bg-green-500 text-white text-[10px] font-black rounded-full min-w-5 h-5 flex items-center justify-center border-2 border-black px-1">
+            <span className="absolute -top-1.5 -right-1.5 bg-green-700 text-white text-[10px] font-black rounded-full min-w-5 h-5 flex items-center justify-center border-2 border-black px-1">
               {online}
             </span>
           )}
@@ -266,6 +267,7 @@ function SysMenu({ compact, mute, onToggleMute }: { compact?: boolean; mute: boo
       trigger={<><Settings size={compact ? 18 : 20} /><ChevronDown size={compact ? 11 : 12} /></>}
     >
       <Item icon={<Gift size={20} />} label="Nhập code nhận quà (G)" desc="Code bí mật mỗi đợt" onClick={() => s.setModal('gift')} />
+      <Item icon="🏆" label="Thành tựu" desc="Xem tiến độ + phần thưởng" onClick={() => s.setModal('ach')} />
       <Item icon={<Settings size={20} />} label="Cài đặt" desc="Đồ họa, độ phân giải" onClick={() => s.setModal('settings')} />
       <Item icon={mute ? <VolumeX size={20} /> : <Volume2 size={20} />} label={mute ? 'Bật âm thanh' : 'Tắt âm thanh'} desc="Nhạc + hiệu ứng" onClick={onToggleMute} />
     </Drop>
@@ -326,24 +328,25 @@ export default function HUD() {
               <PlayMenu compact />
               <TownShopMenu compact />
               <SocialMenu compact />
-              <button className="pixel-btn !text-[11px] !px-2 !py-2 !bg-green-500 !text-white shrink-0 flex items-center gap-1" onClick={() => goToFarm()}><Tractor size={14} /> Farm</button>
+              <button className="pixel-btn !text-[11px] !px-2 !py-2 !bg-green-700 !text-white shrink-0 flex items-center gap-1" onClick={() => goToFarm()}><Tractor size={14} /> Farm</button>
             </>
           ) : area === 'mall' ? (
             <>
               <PlayMenu compact />
               <MallShopMenu compact />
               <SocialMenu compact />
-              <button className="pixel-btn !text-[11px] !px-2 !py-2 !bg-purple-500 !text-white shrink-0 flex items-center gap-1" title="Về thị trấn (cổng phía tây)" onClick={() => goToTown()}>🏘️ Town</button>
-              <button className="pixel-btn !text-[11px] !px-2 !py-2 !bg-green-500 !text-white shrink-0 flex items-center gap-1" onClick={() => goToFarm()}><Tractor size={14} /> Farm</button>
+              <button className="pixel-btn !text-[11px] !px-2 !py-2 !bg-purple-700 !text-white shrink-0 flex items-center gap-1" title="Về thị trấn (cổng phía tây)" onClick={() => goToTown()}>🏘️ Town</button>
+              <button className="pixel-btn !text-[11px] !px-2 !py-2 !bg-green-700 !text-white shrink-0 flex items-center gap-1" onClick={() => goToFarm()}><Tractor size={14} /> Farm</button>
             </>
           ) : (
             <>
               <div className="bg-[#3e3428] border-2 border-black rounded-lg px-1.5 py-1.5 text-[11px] font-extrabold flex items-center gap-1 shrink-0"><GameIcon name="calendar" size={14} /> N{s.day}</div>
-              <div className="bg-[#3e3428] border-2 border-black rounded-lg px-1.5 py-1.5 text-[11px] font-extrabold flex items-center gap-1 shrink-0" title={weatherLabel}><GameIcon name={weatherIcon} size={14} /></div>
-              <button className="icon-btn !w-9 !h-9 !text-black relative shrink-0" title="Làng (V)" onClick={() => s.setModal('village')}>
+              <div className="bg-[#3e3428] border-2 border-black rounded-lg px-1.5 py-1.5 text-[11px] font-extrabold flex items-center gap-1 shrink-0 text-orange-300" role="status" title={`Chuỗi đăng nhập ${s.daily.streak ?? 1} ngày liên tiếp`}><span aria-hidden="true">🔥</span>{s.daily.streak ?? 1}</div>
+              <div className="bg-[#3e3428] border-2 border-black rounded-lg px-1.5 py-1.5 text-[11px] font-extrabold flex items-center gap-1 shrink-0" title={weatherLabel} role="img" aria-label={`Thời tiết: ${weatherLabel}`}><GameIcon name={weatherIcon} size={14} /></div>
+              <button className="icon-btn !w-9 !h-9 !text-black relative shrink-0" title="Làng (V)" aria-label="Làng — bạn bè và bảng tin (phím V)" onClick={() => s.setModal('village')}>
                 <Users size={18} />
                 {online > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-green-500 text-white text-[10px] font-black rounded-full min-w-5 h-5 flex items-center justify-center border-2 border-black px-1">{online}</span>
+                  <span className="absolute -top-1.5 -right-1.5 bg-green-700 text-white text-[10px] font-black rounded-full min-w-5 h-5 flex items-center justify-center border-2 border-black px-1">{online}</span>
                 )}
               </button>
               <FarmShopMenu compact />
@@ -383,6 +386,9 @@ export default function HUD() {
         )}
       </div>
       <div className="flex items-center gap-2 text-sm font-extrabold">
+        <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 text-orange-300 flex items-center gap-1" role="status" title={`Chuỗi đăng nhập ${s.daily.streak ?? 1} ngày liên tiếp`}>
+          <span aria-hidden="true">🔥</span> {s.daily.streak ?? 1}
+        </div>
         <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 text-yellow-300 flex items-center gap-1"><GameIcon name="coin" size={17} /> {s.xu.toLocaleString('vi-VN')}</div>
         <div className="bg-[#3e3428] border-2 border-black rounded-lg px-2 py-1 text-sky-300 flex items-center gap-1"><GameIcon name="gem" size={17} /> {s.gem}</div>
         {area === 'farm' && (
@@ -403,7 +409,7 @@ export default function HUD() {
             <PlayMenu />
             <TownShopMenu />
             <SocialMenu />
-            <button className="pixel-btn !text-[11px] !bg-green-500 !text-white flex items-center gap-1" title="Về nông trại (cổng phía đông)" onClick={() => goToFarm()}>
+            <button className="pixel-btn !text-[11px] !bg-green-700 !text-white flex items-center gap-1" title="Về nông trại (cổng phía đông)" onClick={() => goToFarm()}>
               <Tractor size={16} /> Về farm
             </button>
           </>
@@ -412,19 +418,19 @@ export default function HUD() {
             <PlayMenu />
             <MallShopMenu />
             <SocialMenu />
-            <button className="pixel-btn !text-[11px] !bg-purple-500 !text-white flex items-center gap-1" title="Về thị trấn (cổng phía tây)" onClick={() => goToTown()}>
+            <button className="pixel-btn !text-[11px] !bg-purple-700 !text-white flex items-center gap-1" title="Về thị trấn (cổng phía tây)" onClick={() => goToTown()}>
               🏘️ Về town
             </button>
-            <button className="pixel-btn !text-[11px] !bg-green-500 !text-white flex items-center gap-1" title="Về nông trại" onClick={() => goToFarm()}>
+            <button className="pixel-btn !text-[11px] !bg-green-700 !text-white flex items-center gap-1" title="Về nông trại" onClick={() => goToFarm()}>
               <Tractor size={16} /> Về farm
             </button>
           </>
         ) : (
           <>
-            <button className="icon-btn !text-black relative" title="Làng (V)" onClick={() => s.setModal('village')}>
+            <button className="icon-btn !text-black relative" title="Làng (V)" aria-label="Làng — bạn bè và bảng tin (phím V)" onClick={() => s.setModal('village')}>
               <Users size={20} />
               {online > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-green-500 text-white text-[10px] font-black rounded-full min-w-5 h-5 flex items-center justify-center border-2 border-black px-1">
+                <span className="absolute -top-1.5 -right-1.5 bg-green-700 text-white text-[10px] font-black rounded-full min-w-5 h-5 flex items-center justify-center border-2 border-black px-1">
                   {online}
                 </span>
               )}

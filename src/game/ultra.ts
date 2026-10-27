@@ -10,6 +10,9 @@ import type { WeatherKind } from './types';
 export function isUltra(q: string | undefined): boolean {
   return q === 'ultra';
 }
+export function isHigh(q: string | undefined): boolean {
+  return q === 'high';
+}
 
 export interface UltraEnv {
   dayTime: number; // 0..1 (0 = nửa đêm)
@@ -427,4 +430,38 @@ export function drawUltraPost(
   if (weather !== 'sunny') ultraWeather(ctx, W, H, t, weather);
   else if (!night) ultraWeather(ctx, W, H, t, 'sunny');
   cinematic(ctx, W, H, t, night);
+}
+
+// ================= HIGH GRAPHICS — phủ nhẹ hơn Ultra =================
+// Chỉ giữ: color grading + bóng mây + bụi/hoa thưa + vignette ấm.
+// Bỏ god rays / lens flare / chim / sao / đom đóm / mưa tóe (máy khỏe mới bật Ultra).
+export function drawHighPost(
+  ctx: CanvasRenderingContext2D, W: number, H: number,
+  cam: { x: number; y: number }, t: number, env: UltraEnv,
+): void {
+  const night = env.night ?? (env.dayTime < 0.2 || env.dayTime > 0.82);
+  if (env.indoor) {
+    // trong nhà cấp cao: chỉ ấm nhẹ + vignette (không bụi đèn/grain như ultra)
+    grade(ctx, W, H, env.dayTime, night, true);
+    vignette(ctx, W, H, night);
+    return;
+  }
+  const weather = env.weather ?? 'sunny';
+  grade(ctx, W, H, env.dayTime, night, false);
+  cloudShadows(ctx, W, H, cam.x, t, night ? 0.15 : 0.5);
+  // bụi nắng thưa ban ngày / vài ma trơi ban đêm
+  dustMotes(ctx, W, H, t, night ? 14 : 22, night);
+  if (!night && weather === 'sunny') petals(ctx, W, H, t, 8);
+  vignette(ctx, W, H, night);
+}
+
+/** Vignette đơn giản (không grain/letterbox như cinematic) — dùng cho high + indoor */
+function vignette(ctx: CanvasRenderingContext2D, W: number, H: number, night: boolean) {
+  ctx.save();
+  const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.42, W / 2, H / 2, Math.max(W, H) * 0.72);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, night ? 'rgba(4,4,20,.38)' : 'rgba(70,40,10,.2)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
 }

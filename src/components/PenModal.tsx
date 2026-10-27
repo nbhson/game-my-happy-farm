@@ -12,7 +12,6 @@ const PEN_META: Record<PenId, { title: string; icon: string; types: AnimalType[]
 };
 
 export default function PenModal({ pen }: { pen: PenId }) {
-  const s = useGame();
   const meta = PEN_META[pen];
 
   return (
@@ -32,7 +31,6 @@ export default function PenModal({ pen }: { pen: PenId }) {
 
 function PondBody() {
   const s = useGame();
-  const full = s.fishes.length >= s.pondSlots;
   const maxed = s.pondSlots >= MAX_POND;
   const sorted = [...s.fishes].sort((a, b) => Number(b.grown) - Number(a.grown));
   return (

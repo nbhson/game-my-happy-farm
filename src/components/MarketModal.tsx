@@ -36,7 +36,6 @@ function BuyPane({ seller }: { seller: string }) {
   if (!stall) return <div className="p-4 text-center font-bold">Sạp dọn rồi, hẹn bạn phiên sau!</div>;
   const [nm, emoji] = itemName(stall.pid);
   const total = stall.price * qty;
-  const active = hag.status === 'waiting' || hag.status === 'counter';
   return (
     <div className="space-y-3">
       <div className="text-center">

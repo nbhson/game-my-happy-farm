@@ -50,7 +50,6 @@ function speedLabel(speed: number) {
 
 /** Tab cửa hàng: mua xe mới theo 3 dòng (đạp → máy → hơi), càng xịn càng đắt */
 function ShopTab() {
-  const s = useGame();
   return (
     <div className="flex flex-col gap-2">
       {CAR_KINDS.map((k) => {

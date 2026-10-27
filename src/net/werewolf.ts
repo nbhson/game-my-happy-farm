@@ -100,9 +100,6 @@ function pushLog(msg: string) {
 function aliveWolves(alive: Record<string, boolean>, reveal: Record<string, Role>, players: string[]): string[] {
   return players.filter((p) => alive[p] && reveal[p] === 'wolf');
 }
-function aliveCount(alive: Record<string, boolean>, players: string[]): number {
-  return players.filter((p) => alive[p]).length;
-}
 /** kiểm tra thắng thua sau mỗi lần có người chết (chỉ chủ bàn gọi + broadcast) */
 function checkWinHost() {
   const s = useWolf.getState();
@@ -188,9 +185,10 @@ function resolveNightHost(n: number) {
 
 function beginVoteHost() {
   const s = useWolf.getState();
-  // dọn acts đêm cũ của room này
+  // dọn acts đêm cũ: của room này + mọi room cũ hơn 1 giờ (chống tăng vô hạn)
+  const stale = Date.now() - 3600000;
   for (let i = nightActs.length - 1; i >= 0; i--) {
-    if (nightActs[i].room === s.room) nightActs.splice(i, 1);
+    if (nightActs[i].room === s.room || nightActs[i].at < stale) nightActs.splice(i, 1);
   }
   useWolf.setState({ phase: 'vote', endsAt: Date.now() + VOTE_MS, votes: {}, voted: null });
   sendGameMsg(`${P}VOTESTART|${s.room}|${Date.now() + VOTE_MS}`);
@@ -239,7 +237,12 @@ function handleMsg(m: ChatMsg) {
   if (kind === 'OPEN') {
     const [room, host] = rest;
     if (!room || !host) return;
-    useWolf.setState({ openRooms: { ...s.openRooms, [room]: { host, at: Date.now() } } });
+    // dọn phòng cũ hơn 5 phút để openRooms không tăng vô hạn
+    const stale = Date.now() - 300000;
+    const openRooms: typeof s.openRooms = { ...s.openRooms };
+    for (const r of Object.keys(openRooms)) if (openRooms[r].at < stale) delete openRooms[r];
+    openRooms[room] = { host, at: Date.now() };
+    useWolf.setState({ openRooms });
     if (s.phase === 'idle') useGame.getState().toast(`🐺 ${host} mở bàn MA SÓI! Bấm nút 🐺 (menu Chơi) để vào hang!`);
     return;
   }

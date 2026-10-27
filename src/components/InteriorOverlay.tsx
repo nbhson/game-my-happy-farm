@@ -13,7 +13,7 @@ function scoreOf(v: number): number {
   return 20;
 }
 
-function TimingPanel({ furn, total, done, score, title, sub }: { furn: string; total: number; done: number; score: number; title: string; sub?: string }) {
+function TimingPanel({ furn, total, done, score: _score, title, sub }: { furn: string; total: number; done: number; score: number; title: string; sub?: string }) {
   const [pos, setPos] = useState(0);
   const posRef = useRef(0);
   useEffect(() => {
