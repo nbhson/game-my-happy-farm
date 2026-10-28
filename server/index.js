@@ -15,7 +15,7 @@ import { fileURLToPath } from 'url';
 // logic game casino thuần — tách sang games.js để unit test không cần chạy server
 import {
   touchDeadline, casinoStartRoom, casinoFinishBaiCao, casinoSkipTurn, casinoAction, casinoAutoTimeout,
-  casinoMax, casinoMin,
+  casinoMax, casinoMin, codeFromName,
   tlBotPick, caroBotPick, xdBotAuto, chBot, chAnyMove, chApply,
 } from './games.js';
 
@@ -49,18 +49,6 @@ function flushDbSync() {
 process.on('SIGINT', () => { flushDbSync(); process.exit(0); });
 process.on('SIGTERM', () => { flushDbSync(); process.exit(0); });
 
-/** Mã farm 6 ký tự, suy ra deterministically từ username (client dùng y hệt) */
-// ALPH có 31 ký tự (index 0..30) nên phải % 31 sau khi & 31 — giữ nguyên
-// mọi mã đang dùng, chỉ gập index 31 (hiếm) về 'A' thay vì "undefined".
-function codeFromName(name) {
-  const ALPH = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  let h = 5381;
-  const s = String(name || '').toLowerCase();
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.codePointAt(i)) >>> 0;
-  let out = '';
-  for (let i = 0; i < 6; i++) { out += ALPH[(h & 31) % ALPH.length]; h = (h >>> 5) ^ (h >>> 11); }
-  return out;
-}
 const keyOf = (u) => String(u || '').trim().toLowerCase().slice(0, 12);
 
 async function loadDb() {

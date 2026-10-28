@@ -8,6 +8,21 @@
 
 function casinoMax(game) { return game === 'caro' || game === 'chess' ? 2 : 4; }
 function casinoMin(game) { return 2; }
+
+/** Mã farm 6 ký tự, suy ra deterministically từ username (client dùng y hệt) */
+// ALPH có 31 ký tự (index 0..30) nên phải % 31 sau khi & 31 — giữ nguyên
+// mọi mã đang dùng, chỉ gập index 31 (hiếm) về 'A' thay vì "undefined".
+// HỢP ĐỒNG: bản này phải khớp 100% với codeFromName trong src/net/session.ts —
+// có parity test bảo vệ ở tests/codeParity.test.ts.
+function codeFromName(name) {
+  const ALPH = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let h = 5381;
+  const s = String(name || '').toLowerCase();
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.codePointAt(i)) >>> 0;
+  let out = '';
+  for (let i = 0; i < 6; i++) { out += ALPH[(h & 31) % ALPH.length]; h = (h >>> 5) ^ (h >>> 11); }
+  return out;
+}
 /** Mỗi lượt tiến lên/caro 30s, vòng lật bài cào 45s — hết giờ trọng tài tự đánh */
 const TURN_MS = 30000;
 const BAICAO_MS = 45000;
@@ -1014,7 +1029,7 @@ function caroBotPick(st) {
 
 // ---------- exports (index.js + unit tests dùng) ----------
 export {
-  casinoMax, casinoMin,
+  casinoMax, casinoMin, codeFromName,
   TURN_MS, BAICAO_MS, touchDeadline,
   cDeck, cCmp, cCombo, cBeats, tlNext, tlAllPassed,
   casinoStartRoom, casinoFinishBaiCao, casinoSkipTurn, casinoAction, casinoAutoTimeout,
