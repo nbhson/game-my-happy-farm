@@ -50,6 +50,25 @@ Kết quả audit server (cụ thể, đã đọc toàn bộ file):
 - [x] Security posture: SECURITY.md ghi nhận 2 CRITICAL (vitest dev-only) + 1 HIGH (body-parser LAN-only)
 - [x] Test economy: 6 tests bảo vệ kinh tế đã cân bằng
 
+### H7b — Vòng audit parity client↔server ✅ HOÀN TẤT (5 commits tiếp theo)
+Bộ parity test bảo vệ mọi hợp đồng wire format quan trọng — import CẢ 2 bản (TS client + JS server) so sánh trực tiếp:
+
+| Hợp đồng | Test file | Số ca |
+|---|---|---|
+| `codeFromName` (mã farm) | `tests/codeParity.test.ts` | 5 (kèm 5 mã DB thật làm ground truth) |
+| xì dách value/strength | `tests/cardParity.test.ts` | 6 |
+| bài cào point/score | `tests/cardParity.test.ts` | (trong 6) |
+| tiến lên combo/beats/turn | `tests/tienlenParity.test.ts` | 6 (14 combo + 18 cặp chặt + 4 turn) |
+| cờ vua init/legal/apply/mate/resign | `tests/chessParity.test.ts` | 9 (scholar mate 7 nước chuẩn) |
+| caro checkWin 4 hướng | `tests/caroParity.test.ts` | 3 (9 ca) |
+
+Kết quả: **logic khớp 100% giữa client và server** — không phát hiện lệch nào ngoài edge case `''` (đã ghi nhận, không xảy ra production).
+
+Hardening thêm trong vòng này:
+- ✅ `hello` handler: `code` slice(0,8) chặn amplification broadcast, `id` ép String + slice(0,64)
+- ✅ Casino handlers audit: bet clamp 10..10000, game whitelist, host-only start/addbot/rematch — đã kín
+- ✅ Smoke test socket thật: hello + players list OK; server serve dist Vite 8 OK
+
 ### H8 — Final report ✅ HOÀN TẤT (commit tiếp theo)
 
 ## Ràng buộc không được phá
@@ -70,7 +89,7 @@ Không còn (a) lỗi tsc/lint/test, (b) bug logic đã biết, (c) cải thiệ
 
 | Hạng mục | Trước | Sau |
 |---|---|---|
-| Tests | 0 | **40/40 pass** (date + achievements + server casino/chess + economy) |
+| Tests | 0 | **69/69 pass** (date + achievements + economy + server logic + 5 bộ parity client↔server) |
 | TypeScript strict | ✅ (đã có) | ✅ 0 lỗi |
 | ESLint | ❌ chưa cấu hình | ✅ 0 lỗi, 0 warning (flat config .eslintrc.cjs) |
 | Build | ✅ 5.5s | ✅ **0.7s** (Vite 8 + rolldown) |
@@ -88,14 +107,16 @@ Không còn (a) lỗi tsc/lint/test, (b) bug logic đã biết, (c) cải thiệ
 4. `3565b95` — npm audit fix --force: 0 vulns, Vite 8.3 + vitest 5 (build nhanh 5.5s → 0.7s)
 5. `7626e4d` — 6 unit tests kinh tế bảo vệ cân bằng đã tinh chỉnh
 
+*(Vòng H7b bổ sung: `f4ed017` parity codeFromName · `1f9f620` parity giá trị bài · `fd00150` parity tiến lên · `ce635cd` parity cờ vua · `c942760` parity caro · `c26bce4` harden hello handler)*
+
 ## Số liệu cuối
 
-- **Gate xanh toàn bộ:** tsc 0 lỗi · eslint 0 lỗi · vitest 40/40 · build 0.7s · node --check 2 files server · 0 vulnerabilities
+- **Gate xanh toàn bộ:** tsc 0 lỗi · eslint 0 lỗi · vitest 69/69 · build 0.7s · node --check 2 files server · 0 vulnerabilities
 - **Bundle:** +12.8% (369.5 → 416.9 kB gzip) — dưới hạn mức ≤20%
-- **Wire format client↔server:** 100% giữ nguyên (đã smoke test API + validate)
+- **Wire format client↔server:** 100% giữ nguyên + có **5 bộ parity test** so sánh trực tiếp 2 bản (TS vs JS) với ground truth từ DB production
 - **Kinh tế:** không đổi — tests bảo vệ các mốc giá đã cân bằng (trung 45, suatrau 700...)
 - **60fps:** loop render có cleanup đúng, không memory leak phát hiện được
-- **60fps hợp đồng:** giữ nguyên `useSyncExternalStore` pattern, không thêm subscription mới
+- **Security:** 0 vulnerabilities; mọi socket handler đã validate (pos/plot/farm:save/chat/hello/casino)
 
 ## Backlog còn lại (không chặn, ROI thấp hoặc cần quyết định product)
 
