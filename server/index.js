@@ -261,7 +261,8 @@ io.on('connection', (socket) => {
   let myId = null;
 
   socket.on('hello', (p = {}) => {
-    myId = p.id || socket.id;
+    // id: ép string + giới hạn — chặn client độc hại nhồi object/chuỗi khổng lồ làm key Map
+    myId = String(p.id || socket.id).slice(0, 64) || socket.id;
     socketUser.set(socket.id, myId);
     const prev = players.get(myId);
     players.set(myId, {
@@ -269,7 +270,8 @@ io.on('connection', (socket) => {
       v: Number(p.v ?? prev?.v ?? 1),
       name: String(p.name || prev?.name || 'Bạn').slice(0, 12),
       avatar: Number(p.avatar ?? prev?.avatar ?? 0),
-      code: String(p.code || prev?.code || ''),
+      // mã farm 6 ký tự — chặn 8 để thoáng nhưng không cho nhồi dữ liệu broadcast
+      code: String(p.code || prev?.code || '').slice(0, 8),
       x: Number(p.x ?? prev?.x ?? 700), y: Number(p.y ?? prev?.y ?? 600),
       dir: prev?.dir ?? 1, moving: false,
       bubble: prev?.bubble, bubbleAt: prev?.bubbleAt,
