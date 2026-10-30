@@ -42,6 +42,9 @@ export interface AccountData {
   skills?: { farm: number; animal: number; fish: number };
   /** Minigame đuổi chuột: best score */
   moleBest?: number;
+  /** Thân thiết NPC: điểm + ngày tặng quà gần nhất */
+  friends?: Record<string, number>;
+  friendGifts?: Record<string, string>;
   /** ms lúc export — để so bản nào mới hơn khi server/local lệch nhau */
   updatedAt?: number;
 }
@@ -166,6 +169,8 @@ export function exportAccount(): AccountData {
     orders: g.orders, ordersDate: g.ordersDate,
     skills: g.skills as Record<SkillKind, number>,
     moleBest: g.moleBest,
+    friends: g.friends,
+    friendGifts: g.friendGifts,
     updatedAt: Date.now(),
   };
 }

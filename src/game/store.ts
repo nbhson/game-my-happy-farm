@@ -21,6 +21,7 @@ import { sfx } from './audio';
 import { reportContestCatch } from '../net/contest';
 import { GIFTCODES, normalizeCode, rewardSummary } from './giftcodes';
 import { isFestivalToday, FESTIVAL_SELL_MUL, FESTIVAL_ORDER_MUL } from './festival';
+import { FRIEND_DELIVER_POINTS, FRIEND_GIFT_POINTS, FRIEND_GIFT_COST, friendMul, visitGift } from './friendship';
 
 /** pid sản phẩm vật nuôi (trứng/sữa/lông…) — bán được thưởng perk kỹ năng Chăn nuôi */
 const ANIMAL_PIDS = new Set(Object.values(ANIMALS).map((a) => a.productId));
@@ -136,6 +137,12 @@ interface GameState {
   moleBest: number;
   moleCooldown: number;
 
+  // ── Thân thiết NPC (Đợt 4, persist + sync DB) ──
+  /** npc name -> điểm thân thiết */
+  friends: Record<string, number>;
+  /** npc name -> ngày tặng quà gần nhất (YYYY-MM-DD) — mỗi ngày tặng 1 lần */
+  friendGifts: Record<string, string>;
+
   // actions
   /** Đăng nhập bằng username: có snapshot DB thì migrate + dùng, không thì farm mới */
   loadAccount: (name: string, avatar: number, data: {
@@ -158,6 +165,8 @@ interface GameState {
     orders?: FarmOrder[]; ordersDate?: string;
     skills?: { farm: number; animal: number; fish: number };
     moleBest?: number;
+    friends?: Record<string, number>;
+    friendGifts?: Record<string, string>;
   } | null) => void;
   toast: (msg: string) => void;
   dismissToast: (id: number) => void;
@@ -218,6 +227,8 @@ interface GameState {
   skillXp: (kind: SkillKind, action: string, times?: number) => void;
   /** Kết thúc minigame đuổi chuột: đổi điểm lấy xu (kèm best + cooldown) */
   moleResult: (score: number) => { xu: number; gem: number; best: boolean };
+  /** Tặng quà NPC (50 xu / lần / ngày / NPC): +15 thân thiết */
+  giftFriend: (npc: string) => { ok: boolean; msg: string };
   exchangeGem: () => void;
   buyOutfit: (id: string) => void;
   wearOutfit: (id: string) => void;
@@ -446,6 +457,7 @@ export const useGame = create<GameState>()(
       skills: { farm: 0, animal: 0, fish: 0 },
       rainbowUntil: null,
       moleBest: 0, moleCooldown: 0,
+      friends: {}, friendGifts: {},
       viewH: defaultViewH(),
       kem: false,
       petFx: null,
@@ -509,6 +521,8 @@ export const useGame = create<GameState>()(
               ? { farm: data.skills.farm || 0, animal: data.skills.animal || 0, fish: data.skills.fish || 0 }
               : { farm: 0, animal: 0, fish: 0 },
             moleBest: typeof data.moleBest === 'number' ? data.moleBest : 0,
+            friends: data.friends && typeof data.friends === 'object' ? data.friends : {},
+            friendGifts: data.friendGifts && typeof data.friendGifts === 'object' ? data.friendGifts : {},
           });
         } else {
           set({
@@ -529,6 +543,7 @@ export const useGame = create<GameState>()(
             orders: [], ordersDate: '',
             skills: { farm: 0, animal: 0, fish: 0 },
             moleBest: 0,
+            friends: {}, friendGifts: {},
             baLove: 0, loveClaim: [], fundTotal: 0, fundClaim: [],
             daily: freshDaily(1), junkAt: 0,
           });
@@ -655,6 +670,18 @@ export const useGame = create<GameState>()(
         get().checkAchieve();
         return { xu, gem, best };
       },
+      giftFriend: (npc) => {
+        const s = get();
+        const today = todayKey();
+        if (s.friendGifts[npc] === today) return { ok: false, msg: `Hôm nay đã tặng quà ${npc} rồi — mai tặng tiếp nhé!` };
+        if (s.xu < FRIEND_GIFT_COST) return { ok: false, msg: `Cần ${FRIEND_GIFT_COST} xu để mua quà!` };
+        const friends = { ...s.friends, [npc]: (s.friends[npc] || 0) + FRIEND_GIFT_POINTS };
+        set({ xu: s.xu - FRIEND_GIFT_COST, friends, friendGifts: { ...s.friendGifts, [npc]: today } });
+        sfx.coin();
+        get().toast(`🎁 Đã tặng quà ${npc}! +${FRIEND_GIFT_POINTS} điểm thân thiết`);
+        get().addXP(5); get().checkQuest();
+        return { ok: true, msg: '' };
+      },
       addInv: (pid, n) => set((s) => {
         const inv = { ...s.inv };
         inv[pid] = (inv[pid] || 0) + n;
@@ -714,13 +741,31 @@ export const useGame = create<GameState>()(
           orders: s.orders.filter((x) => x.id !== id),
           stats: { ...s.stats, earned: s.stats.earned + o.xu },
         });
+        // ❤️ thân thiết NPC: +8 điểm, đơn của NPC thân được trả hậu hĩnh hơn
+        const fMul = friendMul(s.friends[o.npc] || 0);
         // 🎪 lễ hội cuối tuần: NPC trả hậu hĩnh hơn
-        const gotXu = Math.round(o.xu * (isFestivalToday() ? FESTIVAL_ORDER_MUL : 1));
+        const gotXu = Math.round(o.xu * fMul * (isFestivalToday() ? FESTIVAL_ORDER_MUL : 1));
         if (gotXu > 0) get().addXu(gotXu);
         if (o.gem) get().addGem(o.gem);
         sfx.coin();
-        get().toast(`📦 Giao đơn ${o.npc} xong! +${gotXu.toLocaleString('vi-VN')} xu${isFestivalToday() ? ' 🎪' : ''}${o.gem ? ` +${o.gem} gem` : ''} +${o.xp} XP`);
+        get().toast(`📦 Giao đơn ${o.npc} xong! +${gotXu.toLocaleString('vi-VN')} xu${fMul > 1 ? ' ❤️' : ''}${isFestivalToday() ? ' 🎪' : ''}${o.gem ? ` +${o.gem} gem` : ''} +${o.xp} XP`);
         get().addXP(o.xp); get().checkQuest(); get().checkAchieve();
+        // điểm thân thiết (đặt sau để friendMul dùng đúng mức cũ)
+        const after = { ...get().friends, [o.npc]: (get().friends[o.npc] || 0) + FRIEND_DELIVER_POINTS };
+        set({ friends: after });
+        // 🏠 NPC GHÉ THĂM: vừa giao hết đơn hôm nay → NPC thân thiết nhất ghé cảm ơn
+        const rest = get().orders;
+        if (rest.length === 0) {
+          let bestNpc = o.npc, bestPts = -1;
+          for (const [npc, pts] of Object.entries(after)) {
+            if (pts > bestPts) { bestPts = pts; bestNpc = npc; }
+          }
+          const gift = visitGift(bestPts);
+          set({ xu: get().xu + gift.xu, gem: get().gem + gift.gem, stats: { ...get().stats, earned: get().stats.earned + gift.xu } });
+          sfx.coin();
+          get().toast(`🏠 ${bestNpc} ghé thăm cảm ơn! Tặng ${gift.xu} xu${gift.gem ? ' +1 gem 💎' : ''} (❤️ ${bestPts} điểm)`);
+          get().addXP(10);
+        }
         saveSoon();
         return { ok: true, msg: '' };
       },
@@ -1734,6 +1779,7 @@ export const useGame = create<GameState>()(
           orders: [], ordersDate: '',
           skills: { farm: 0, animal: 0, fish: 0 },
           rainbowUntil: null, moleBest: 0, moleCooldown: 0,
+          friends: {}, friendGifts: {},
           interiorId: null, inAct: null, baLove: 0, loveClaim: [], fundTotal: 0, fundClaim: [],
           daily: freshDaily(1),
           junkAt: 0, speedUntil: null, stageColor: '#ffd24d',
@@ -1787,6 +1833,7 @@ export const useGame = create<GameState>()(
         orders: s.orders, ordersDate: s.ordersDate,
         skills: s.skills,
         moleBest: s.moleBest,
+        friends: s.friends, friendGifts: s.friendGifts,
       }),
       // Custom storage: debounced write (max 1 write / 2s) để tránh localStorage I/O thrash
       // State trong memory vẫn cập nhật đầy đủ mỗi frame; localStorage chỉ lag ~2s.
