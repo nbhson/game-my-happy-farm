@@ -649,6 +649,7 @@ export default function GameCanvas({ target, onTarget }: Props) {
             px: playerRef.x, py: playerRef.y,
             plots: (visitSnap?.plots ?? st.plots), fishes: (visitSnap?.fishes ?? st.fishes), pondSlots: st.pondSlots, animals: (visitSnap?.animals ?? st.animals),
             pesticide: st.inv.pesticide || 0,
+            fert: st.inv.fert || 0, fertPro: st.inv.fertPro || 0,
             now: nowMs, t, kem,
           });
       // sạp chợ đêm: đứng sát sạp thì ưu tiên mua hàng

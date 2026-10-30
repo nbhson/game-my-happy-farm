@@ -7,11 +7,13 @@ import { MALL_PIERS, MALL_PROPS, mallTownGateCenter } from './mall';
 
 export interface InteractCtx {
   px: number; py: number;
-  plots: { state: string; crop: string | null; watered: boolean; locked: boolean; pest?: boolean }[];
+  plots: { state: string; crop: string | null; watered: boolean; locked: boolean; pest?: boolean; fert?: number }[];
   fishes: PondFish[];
   pondSlots: number;
   animals: Animal[];
   pesticide: number; // số thuốc trừ sâu trong kho (hiện trong nhãn)
+  fert?: number; // số phân thường trong kho (hiện trong nhãn bón phân)
+  fertPro?: number; // số phân hữu cơ trong kho
   now: number; t: number;
   /** Kem — mèo cam đi theo chủ (lệnh kemkem). null = chưa triệu hồi */
   kem?: { x: number; y: number } | null;
@@ -159,9 +161,15 @@ export function nearestInteract(c: InteractCtx): InteractTarget | null {
       if (pl.locked) label = `Mở ô ${i + 1} (${plotCost(i)} xu, Lv${plotReq(i)})`;
       else if (pl.state === 'grass') label = `Cuốc đất ô ${i + 1}`;
       else if (pl.state === 'soil') label = `Gieo hạt ô ${i + 1}`;
-      else if (pl.state === 'growing') label = pl.pest
-        ? (c.pesticide > 0 ? `Phun thuốc ${pl.crop ? CROPS[pl.crop].name : ''} (còn ${c.pesticide})` : 'Hết thuốc! Mua ở cửa hàng')
-        : pl.watered ? `${pl.crop ? CROPS[pl.crop].name : ''} đang lớn…` : `Tưới ${pl.crop ? CROPS[pl.crop].name : ''}`;
+      else if (pl.state === 'growing') {
+        const cn = pl.crop ? CROPS[pl.crop].name : '';
+        if (pl.pest) label = c.pesticide > 0 ? `Phun thuốc ${cn} (còn ${c.pesticide})` : 'Hết thuốc! Mua ở cửa hàng';
+        else if (!pl.watered) label = `Tưới ${cn}`;
+        else if ((pl.fert ?? 0) < 2 && (c.fert || 0) + (c.fertPro || 0) > 0) {
+          label = c.fertPro ? `Bón phân hữu cơ 🌟 ${cn}` : `Bón phân 💩 ${cn}`;
+        }
+        else label = `${cn} đang lớn…`;
+      }
       else label = `Thu hoạch ${pl.crop ? CROPS[pl.crop].name : ''} ${pl.crop ? CROPS[pl.crop].emoji : ''}`;
       bd = d; best = { kind: 'plot', index: i, label };
     }

@@ -22,7 +22,7 @@ export default function BulkModal() {
   }
 
   // --- đếm việc cần làm: NHÓM NÔNG TRẠI ---
-  let grass = 0, empty = 0, thirsty = 0, buggy = 0, ripe = 0;
+  let grass = 0, empty = 0, thirsty = 0, buggy = 0, ripe = 0, hungryFert = 0;
   for (const pl of s.plots) {
     if (pl.locked) continue;
     if (pl.state === 'grass') grass++;
@@ -30,6 +30,7 @@ export default function BulkModal() {
     else if (pl.state === 'growing') {
       if (pl.pest) buggy++;
       else if (!pl.watered) thirsty++;
+      else if ((pl.fert ?? 0) < 2) hungryFert++;
     } else if (pl.state === 'ready' && pl.crop) ripe++;
   }
   // --- đếm việc cần làm: NHÓM GIA SÚC / CÁ ---
@@ -54,6 +55,8 @@ export default function BulkModal() {
   const sowN = Math.min(empty, selSeeds);
   const feedHave = (s.inv.feed || 0) + (s.inv.feedPro || 0);
   const sprayHave = s.inv.pesticide || 0;
+  const fertHave = (s.inv.fert || 0) + (s.inv.fertPro || 0);
+  const fertN = hungryFert;
 
   return (
     <div className="space-y-3">
@@ -63,6 +66,7 @@ export default function BulkModal() {
         <div className="grid grid-cols-2 gap-1.5">
           <BulkBtn label="Cuốc đất" count={grass} icon="hoe" onClick={() => s.bulkHoe()} />
           <BulkBtn label="Tưới nước" count={thirsty} icon="drop" onClick={() => s.bulkWater()} />
+          <BulkBtn label={`Bón phân (${fertHave}💩)`} count={fertN} icon="sprout" onClick={() => s.bulkFert()} />
           <BulkBtn label={`Phun thuốc (${sprayHave}🧪)`} count={buggy} icon="pesticide" onClick={() => s.bulkSpray()} />
           <BulkBtn label="Thu hoạch" count={ripe} icon="basket" onClick={() => s.bulkHarvest()} />
         </div>

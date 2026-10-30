@@ -18,6 +18,18 @@ export interface Plot {
   waterLeft: number; // giây còn ướt
   locked: boolean; // chưa mở khóa (mua bằng xu + cấp)
   pest: boolean; // đang bị sâu (ngừng lớn cho tới khi phun thuốc)
+  /** phân bón đang có hiệu lực: 0 = không, 1 = phân thường (+30% nhanh), 2 = phân hữu cơ (+60% nhanh + rớt vàng nhiều hơn) */
+  fert?: number;
+}
+
+/** 1 đơn hàng NPC đặt: giao đủ vật phẩm nhận thưởng xu/xp/gem (reset theo ngày thực) */
+export interface FarmOrder {
+  id: string;
+  npc: string; // tên NPC đặt đơn
+  items: Record<string, number>; // pid -> số lượng cần
+  xu: number; // thưởng xu (đã nhân hệ số lời)
+  xp: number;
+  gem: number;
 }
 
 export type AnimalType = 'chicken' | 'duck' | 'cow' | 'pig' | 'sheep'
@@ -51,7 +63,7 @@ export interface Stats {
 
 export type ModalKind =
   | null
-  | 'shop' | 'bag' | 'quest' | 'help' | 'village' | 'townChat' | 'townEmote' | 'casino' | 'gift' | 'outfit' | 'settings' | 'lottery' | 'carshop' | 'race' | 'market' | 'board' | 'wedding' | 'smith' | 'ach' | 'catchgame'
+  | 'shop' | 'bag' | 'quest' | 'help' | 'village' | 'townChat' | 'townEmote' | 'casino' | 'gift' | 'outfit' | 'settings' | 'lottery' | 'carshop' | 'race' | 'market' | 'board' | 'wedding' | 'smith' | 'ach' | 'catchgame' | 'orders'
   | { name: 'seed'; plot: number }
   | { name: 'stock' }
   | { name: 'bait'; pier: number }
@@ -60,7 +72,7 @@ export type ModalKind =
   | { name: 'bulk' }
   | { name: 'wolf' };
 
-export type ShopTab = 'seed' | 'fish' | 'animal' | 'food' | 'sell';
+export type ShopTab = 'seed' | 'fish' | 'animal' | 'food' | 'sell' | 'orders';
 
 /** Bản đồ đang đứng: farm riêng, thị trấn chung, khu mua sắm & giải trí, hay trong nhà */
 export type SceneKind = 'farm' | 'town' | 'mall' | 'interior';

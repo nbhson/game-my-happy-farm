@@ -297,6 +297,14 @@ export const RECIPES: Recipe[] = [
   { id: 'flan', needs: { trung: 1, sua: 1 }, xp: 15, tip: 'Trứng + Sữa → béo ngậy' },
   { id: 'saladtron', needs: { caixanh: 2, cachua: 1 }, xp: 18, tip: 'Rau tươi giòn rụm' },
   { id: 'thitkho', needs: { thit: 1, trung: 2 }, xp: 25, tip: 'Món mặn hao cơm' },
+  // --- công thức mới: quà farm thành đặc sản (bán ~1.5-1.7x tổng nguyên liệu) ---
+  { id: 'banhchung', needs: { lua: 2, trung: 1 }, xp: 12, tip: 'Gói lá dong gói trọn vị quê' },
+  { id: 'phomai', needs: { sua: 2 }, xp: 20, tip: 'Ủ mềm, cắt miếng tan chảy' },
+  { id: 'bapnuong', needs: { bap: 2 }, xp: 40, tip: 'Quẹt bơ, thơm lừ đầu ngõ' },
+  { id: 'trathaomoc', needs: { caixanh: 1, matong: 1 }, xp: 35, tip: 'Thanh lọc, uống ngủ ngon' },
+  { id: 'kemduahau', needs: { sua: 1, duahau: 1 }, xp: 90, tip: 'Mát lạnh ngày hè đồng' },
+  { id: 'keodautrang', needs: { dauphong: 2, matong: 1 }, xp: 95, tip: 'Dai quỷ, ngọt tê đầu lưỡi' },
+  { id: 'vangngo', needs: { nho: 2 }, xp: 150, tip: 'Ủ thùng gỗ 3 năm — đợi cuối vụ' },
 ];
 
 // Bàn chế chú Tám: nâng mồi/cám thường lên xịn

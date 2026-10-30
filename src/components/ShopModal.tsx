@@ -7,9 +7,10 @@ import { useGame } from '../game/store';
 import type { AnimalType, ShopTab } from '../game/types';
 import { sfx } from '../game/audio';
 import { GameIcon, iconForPid } from './GameIcon';
+import { OrdersPanel } from './OrdersModal';
 
 const TABS: [ShopTab, string, string][] = [
-  ['seed', 'sprout', 'Hạt'], ['fish', 'caro', 'Cá'], ['animal', 'chicken', 'Vật nuôi'], ['food', 'feed', 'Thức ăn'], ['sell', 'coin', 'Bán'],
+  ['seed', 'sprout', 'Hạt'], ['fish', 'caro', 'Cá'], ['animal', 'chicken', 'Vật nuôi'], ['food', 'feed', 'Thức ăn'], ['orders', 'mail', 'Đơn'], ['sell', 'coin', 'Bán'],
 ];
 
 function Coin({ v }: { v: number | string }) {
@@ -136,11 +137,18 @@ export default function ShopModal() {
           <Card icon="pesticide" title="Thuốc trừ sâu" desc="Cây bị sâu sẽ ngừng lớn — bấm E vào cây để phun" price={<Coin v={PEST_PRICE} />}>
             <BulkBuy onBuy={(n) => s.buyPesticide(n)} />
           </Card>
+          <Card icon="fert" title="Phân bón 💩" desc="Bón cho cây đã tưới — lớn nhanh +30%, rớt vàng +6%. Bấm E vào cây để bón" price={<Coin v={40} />}>
+            <BulkBuy onBuy={(n) => s.buyFert('fert', n)} />
+          </Card>
+          <Card icon="fertPro" title={<>Phân hữu cơ 🌟 <GameIcon name="lock" size={12} />Lv12</>} desc="Lớn nhanh +60%, rớt vàng +14% — bón đè lên phân thường" price={<Coin v={120} />}>
+            <BulkBuy onBuy={(n) => { if (s.level < 12) { s.toast('Phân hữu cơ mở từ Lv12!'); return; } s.buyFert('fertPro', n); }} />
+          </Card>
           <Card icon="gem" title="Đổi gem" desc="5 gem = 500 xu" price={<span className="inline-flex items-center gap-0.5">5<GameIcon name="gem" size={13} /></span>}>
             <button className="pixel-btn !text-[10px] !px-2 !py-2" onClick={() => s.exchangeGem()}>Đổi</button>
           </Card>
         </div>
       )}
+      {tab === 'orders' && <OrdersPanel />}
       {tab === 'sell' && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {Object.keys(s.inv).length === 0 && <p>Kho trống! Thu hoạch rồi quay lại bán nhé</p>}

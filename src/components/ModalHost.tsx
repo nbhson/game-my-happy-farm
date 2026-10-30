@@ -26,6 +26,7 @@ import WeddingModal from './WeddingModal';
 import SmithModal from './SmithModal';
 import AchModal from './AchModal';
 import CatchGameModal from './CatchGameModal';
+import OrdersModal from './OrdersModal';
 import { GameIcon } from './GameIcon';
 
 // Casino (sảnh + 5 bàn + logic bài) nặng — tải lười khi mở, nhẹ bundle lúc đăng nhập
@@ -56,6 +57,7 @@ export default function ModalHost() {
   else if (modal === 'wedding') { icon = 'quest'; title = '💒 NHÀ VĂN HÓA'; body = <WeddingModal />; }
   else if (modal === 'ach') { icon = 'quest'; title = '🏆 THÀNH TỰU NÔNG TRẠI'; body = <AchModal />; }
   else if (modal === 'catchgame') { icon = 'basket'; title = '🧺 BẮT RAU VÀNG'; body = <CatchGameModal />; }
+  else if (modal === 'orders') { icon = 'mail'; title = '📋 SỔ ĐƠN HÀNG'; body = <OrdersModal />; }
   else if (modal === 'settings') { icon = 'quest'; title = 'CÀI ĐẶT'; body = <SettingsModal />; }
   else if (typeof modal === 'object' && modal.name === 'house') {
     const hn = modal.house === 'cafe' ? 'QUÁN CÀ PHÊ MÈO' : modal.house === 'stage' ? 'SÂN KHẤU SỰ KIỆN'

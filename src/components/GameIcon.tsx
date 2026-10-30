@@ -2,7 +2,7 @@
 // Cùng art-style với canvas (icons.ts): nét tròn, màu ấm, không phụ thuộc font máy.
 export type IconName =
   | 'coin' | 'gem' | 'lock' | 'sprout' | 'seed' | 'hoe' | 'basket' | 'drop'
-  | 'feed' | 'feedPro' | 'bait' | 'baitPro' | 'pesticide'
+  | 'feed' | 'feedPro' | 'bait' | 'baitPro' | 'pesticide' | 'fert' | 'fertPro'
   | 'lua' | 'carot' | 'caixanh' | 'cachua' | 'khoai' | 'bap' | 'dualeo'
   | 'catim' | 'dautay' | 'duahau' | 'nho' | 'bingo' | 'caphe' | 'nam' | 'sam'
   | 'ot' | 'hanh' | 'mia' | 'dauphong' | 'thanhlog' | 'saurieng' | 'bo' | 'mangcut' | 'vaithieu'
@@ -34,6 +34,7 @@ export function iconForPid(pid: string): string {
   const known: Record<string, string> = {
     feed: 'feed', feedPro: 'feedPro', bait: 'bait', baitPro: 'baitPro',
     pesticide: 'pesticide',
+    fert: 'fert', fertPro: 'fertPro',
     trung: 'trung', trungvit: 'trungvit', sua: 'sua', thit: 'thit', len: 'len',
     ung: 'ung', rong: 'rong',
     longtho: 'longtho', suade: 'suade', suatrau: 'suatrau',
@@ -58,6 +59,9 @@ function renderIcon(name: string) {
     case 'bait': return (<g><path d="M10 24 Q14 18 12 12 Q11 7 15 6" stroke="#c65d7b" strokeWidth="4" fill="none" strokeLinecap="round" /><path d="M10 24 Q14 18 12 12" stroke="#f4a7c3" strokeWidth="1.6" fill="none" strokeLinecap="round" /></g>);
     case 'baitPro': return (<g><path d="M11 24 A8 8 0 0 1 23 12" stroke="#ff7043" strokeWidth="5" fill="none" strokeLinecap="round" /><circle cx="23" cy="11" r="4" fill="#ff7043" /><circle cx="24" cy="10" r="1.4" fill="#212121" /><path d="M25 8 L29 4 M25 10 L30 9" stroke="#ffccbc" strokeWidth="1.4" strokeLinecap="round" /></g>);
     case 'pesticide': return (<g><rect x="10" y="13" width="10" height="13" rx="2.5" fill="#7fc8f8" stroke="#01579b" strokeWidth="2" /><rect x="10" y="13" width="10" height="4.5" fill="#29b6f6" /><rect x="13" y="8" width="4" height="5" fill="#546e7a" /><path d="M17 9 L24 9 L24 11 L17 11" fill="#37474f" /><path d="M22 9 L22 6" stroke="#37474f" strokeWidth="2.2" strokeLinecap="round" /><circle cx="26" cy="7" r="1.3" fill="#b3e5fc" /><circle cx="29" cy="10" r="1.5" fill="#b3e5fc" /><circle cx="26.5" cy="13" r="1.2" fill="#b3e5fc" /><path d="M13 20 L17 20 M13 23 L17 23" stroke="#01579b" strokeWidth="1.4" strokeLinecap="round" /></g>);
+    // phân bón: túi vải đựng "phân" nâu + chấm nhỏ (thường); hữu cơ có quầng vàng + sao
+    case 'fert': return (<g><path d="M10 12 Q16 8 22 12 L23.5 26 Q16 29 8.5 26 Z" fill="#a1887f" stroke="#4e342e" strokeWidth="2" strokeLinejoin="round" /><path d="M11 12 Q16 15 21 12" fill="none" stroke="#4e342e" strokeWidth="1.6" /><rect x="13.2" y="6.5" width="5.6" height="4" rx="1.6" fill="#8d6e63" stroke="#4e342e" strokeWidth="1.4" /><circle cx="14" cy="19" r="1.6" fill="#5d4037" /><circle cx="18.5" cy="21.5" r="1.4" fill="#5d4037" /><circle cx="15.5" cy="23.5" r="1.2" fill="#6d4c41" /></g>);
+    case 'fertPro': return (<g><path d="M10 12 Q16 8 22 12 L23.5 26 Q16 29 8.5 26 Z" fill="#aed581" stroke="#33691e" strokeWidth="2" strokeLinejoin="round" /><path d="M11 12 Q16 15 21 12" fill="none" stroke="#33691e" strokeWidth="1.6" /><rect x="13.2" y="6.5" width="5.6" height="4" rx="1.6" fill="#7cb342" stroke="#33691e" strokeWidth="1.4" /><circle cx="14" cy="19" r="1.6" fill="#558b2f" /><circle cx="18.5" cy="21.5" r="1.4" fill="#558b2f" /><path d="M16 15.5 L17 17.5 L19 18 L17 18.5 L16 20.5 L15 18.5 L13 18 L15 17.5 Z" fill="#fff59d" stroke="#f9a825" strokeWidth="0.8" /></g>);
     // ---------- nông sản ----------
     case 'lua': return (<g>{[10, 14, 18, 22].map((x, i) => (<g key={i}><line x1={x} y1="28" x2={x + (i % 2 ? 1.5 : -1.5)} y2="10" stroke={i % 2 ? '#7cb342' : '#558b2f'} strokeWidth="2.2" strokeLinecap="round" /><ellipse cx={x + (i % 2 ? 1.5 : -1.5)} cy="10" rx="2" ry="3.6" fill="#fdd835" /></g>))}</g>);
     case 'carot': return (<g><path d="M10 16 L22 16 L16 29 Z" fill="#ef6c00" stroke="#bf360c" strokeWidth="1.6" strokeLinejoin="round" /><path d="M16 16 L16 6 M16 12 L11 7 M16 12 L21 7" stroke="#2e7d32" strokeWidth="2.4" strokeLinecap="round" /><line x1="14" y1="20" x2="18" y2="20" stroke="#ffcc80" strokeWidth="1.4" /></g>);

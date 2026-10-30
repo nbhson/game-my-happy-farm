@@ -1,15 +1,16 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Animal, AnimalType, CoopCap, DailyState, FloatText, GraphicsQuality, InAct, ModalKind, Plot, PondFish, ResMode, SceneKind, ShopTab, Stats, WeatherKind } from './types';
+import type { Animal, AnimalType, CoopCap, DailyState, FarmOrder, FloatText, GraphicsQuality, InAct, ModalKind, Plot, PondFish, ResMode, SceneKind, ShopTab, Stats, WeatherKind } from './types';
+import { genOrders, rerollGen, ORDER_REROLL_COST } from './orders';
 import { newAchievements } from './achievements';
 import {
   ANIMALS, BITE_MAX, BITE_MIN, BITE_WINDOW, CARS, CROPS, DAY_LENGTH, FEED_PRO_PRICE, FEED_PRICE,
-  BAIT_PRO_PRICE, BAIT_PRICE, DEFAULT_OUTFIT, FISHES, MAX_PLOTS, MAX_POND, OUTFITS, QUESTS,
+  BAIT_PRO_PRICE, BAIT_PRICE, DEFAULT_OUTFIT, FERT_PRICE, FERT_PRO_PRICE, FISHES, MAX_PLOTS, MAX_POND, OUTFITS, QUESTS,
   WING_MAX_LV, WING_UP, isWing,
   PEST_PRICE, PEST_RATE, genBiteCombo,
   type BiteDir,
   type OutfitSlot,
-  START_CAP, START_PLOTS, START_POND, animalSellPrice, capCost, capReq, plotCost, plotReq, pondCost, pondReq,
+  START_CAP, START_PLOTS, START_POND, animalSellPrice, capCost, capReq, itemName, plotCost, plotReq, pondCost, pondReq,
   rollRiverCatch, sellPrice,
 } from './data';
 import { PIERS, plotPos } from './world';
@@ -84,7 +85,7 @@ interface GameState {
   // hiệu ứng cá mắc trên dây khi vừa giật dính (vẽ ở world 2.5s)
   catchPop: { x: number; y: number; fishId: string; label: string; until: number } | null;
   // hiệu ứng động tác trên từng ô ruộng (cuốc/gieo/tưới/phun/thu hoạch), transient ~1.3s
-  plotFx: { plot: number; kind: 'hoe' | 'plant' | 'water' | 'spray' | 'harvest'; at: number; crop?: string }[];
+  plotFx: { plot: number; kind: 'hoe' | 'plant' | 'water' | 'spray' | 'fert' | 'harvest'; at: number; crop?: string }[];
   // thời trang: slot -> itemId + kho đồ đã sở hữu
   outfit: Record<string, string>;
   ownedOutfits: string[];
@@ -116,6 +117,10 @@ interface GameState {
   lastCatchGameAt: number;
   catchGameCooldown: number; // epoch ms hết cooldown
 
+  // ── Sổ đơn hàng: 3 đơn NPC/ngày (reset theo ngày thực, persist + sync DB) ──
+  orders: FarmOrder[];
+  ordersDate: string;
+
   // actions
   /** Đăng nhập bằng username: có snapshot DB thì migrate + dùng, không thì farm mới */
   loadAccount: (name: string, avatar: number, data: {
@@ -135,6 +140,7 @@ interface GameState {
     quality?: GraphicsQuality; viewH?: number; kem?: boolean;
     autoQuality?: boolean; resMode?: ResMode;
     stageColor?: string;
+    orders?: FarmOrder[]; ordersDate?: string;
   } | null) => void;
   toast: (msg: string) => void;
   dismissToast: (id: number) => void;
@@ -167,6 +173,13 @@ interface GameState {
   addInv: (pid: string, n: number) => void;
   /** Nhập giftcode: trả về { ok, msg } để modal hiển thị. Mỗi code 1 lần / farm. */
   redeemCode: (raw: string) => { ok: boolean; msg: string };
+  // ---- Sổ đơn hàng ----
+  /** Đảm bảo đơn hôm nay đúng ngày thực (qua 00:00 → sinh đơn mới theo level). Trả về true nếu vừa refresh. */
+  touchOrders: () => boolean;
+  /** Giao 1 đơn: trừ nguyên liệu, lĩnh thưởng xu/xp/gem. Trả về msg lỗi (rỗng = ok) */
+  deliverOrder: (id: string) => { ok: boolean; msg: string };
+  /** Đổi 1 đơn khác (tốn 50 xu) */
+  rerollOrder: (id: string) => { ok: boolean; msg: string };
   tick: (dt: number) => void;
   interactPlot: (i: number) => void;
   unlockPlot: (i: number) => void;
@@ -182,6 +195,8 @@ interface GameState {
   buyFeed: (feedId: string, n: number) => void;
   buyBait: (baitId: string, n: number) => void;
   buyPesticide: (n: number) => void;
+  /** Mua phân bón (fert = thường / fertPro = hữu cơ) — bón cho cây đang lớn */
+  buyFert: (id: 'fert' | 'fertPro', n: number) => void;
   exchangeGem: () => void;
   buyOutfit: (id: string) => void;
   wearOutfit: (id: string) => void;
@@ -229,6 +244,8 @@ interface GameState {
   bulkFeedFish: () => void;
   /** Thu hoạch hết cá đã lớn trong ao */
   bulkHarvestFish: () => void;
+  /** Bón phân cho hết cây đang lớn đã tưới (ưu tiên phân thường) */
+  bulkFert: () => void;
   /** Chủ farm bị hái trộm: mất cây ở ô plot nếu còn chín đúng loại, trả về true nếu mất */
   applyVictimSteal: (plot: number, crop: string) => boolean;
   sell: (pid: string, all: boolean) => void;
@@ -247,7 +264,7 @@ interface GameState {
 function freshPlots(): Plot[] {
   return Array.from({ length: MAX_PLOTS }, (_, i) => ({
     state: 'grass' as const, crop: null, progress: 0,
-    watered: false, waterLeft: 0, locked: i >= START_PLOTS, pest: false,
+    watered: false, waterLeft: 0, locked: i >= START_PLOTS, pest: false, fert: 0,
   }));
 }
 function freshCap(): CoopCap {
@@ -264,12 +281,12 @@ function migratePlots(old: Plot[] | undefined): Plot[] {
   const fresh = freshPlots();
   if (!old || !old.length) return fresh;
   if (old.length >= MAX_PLOTS) {
-    return fresh.map((p, i) => ({ ...(old[i] ?? p), locked: old[i]?.locked ?? false, pest: old[i]?.pest ?? false }));
+    return fresh.map((p, i) => ({ ...(old[i] ?? p), locked: old[i]?.locked ?? false, pest: old[i]?.pest ?? false, fert: old[i]?.fert ?? 0 }));
   }
   // save cũ 12 ô đều dùng được → giữ 12 ô đầu mở, còn lại khóa
   const keepOpen = Math.max(START_PLOTS, Math.min(12, old.length));
   return fresh.map((p, i) => (i < old.length
-    ? { state: old[i].state, crop: old[i].crop, progress: old[i].progress, watered: old[i].watered, waterLeft: old[i].waterLeft ?? 0, locked: i >= keepOpen, pest: old[i].pest ?? false }
+    ? { state: old[i].state, crop: old[i].crop, progress: old[i].progress, watered: old[i].watered, waterLeft: old[i].waterLeft ?? 0, locked: i >= keepOpen, pest: old[i].pest ?? false, fert: old[i].fert ?? 0 }
     : p));
 }
 function migrateFishes(old: PondFish[] | undefined, uidSeqRef: { v: number }): PondFish[] {
@@ -404,6 +421,7 @@ export const useGame = create<GameState>()(
       // ── game juice + thành tựu: khởi tạo rỗng ──
       floatTexts: [], achSeen: [], goldenHarvests: 0,
       catchGameBest: 0, lastCatchGameAt: 0, catchGameCooldown: 0,
+      orders: [], ordersDate: '',
       viewH: defaultViewH(),
       kem: false,
       petFx: null,
@@ -462,6 +480,7 @@ export const useGame = create<GameState>()(
             stageColor: data.stageColor ?? '#ffd24d',
             modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, petFx: null, plotFx: [], scene: 'farm',
             floatTexts: [], goldenHarvests: 0, lastCatchGameAt: 0, catchGameCooldown: 0,
+            orders: Array.isArray(data.orders) ? data.orders : [], ordersDate: typeof data.ordersDate === 'string' ? data.ordersDate : '',
           });
         } else {
           set({
@@ -479,6 +498,7 @@ export const useGame = create<GameState>()(
             quality: 'high', autoQuality: true, autoLevel: 'medium', resMode: 'auto', viewH: defaultViewH(), kem: false,
             modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, petFx: null, plotFx: [], scene: 'farm',
             floatTexts: [], goldenHarvests: 0, lastCatchGameAt: 0, catchGameCooldown: 0,
+            orders: [], ordersDate: '',
             baLove: 0, loveClaim: [], fundTotal: 0, fundClaim: [],
             daily: freshDaily(1), junkAt: 0,
           });
@@ -616,6 +636,58 @@ export const useGame = create<GameState>()(
         return { ok: true, msg };
       },
 
+      // ---- Sổ đơn hàng: 3 đơn NPC/ngày, giao đủ lĩnh 1.5-1.8x giá bán ----
+      touchOrders: () => {
+        const s = get();
+        const today = todayKey();
+        if (s.ordersDate === today && s.orders.length > 0) return false;
+        const orders = genOrders(s.level, today);
+        set({ orders, ordersDate: today });
+        return true;
+      },
+      deliverOrder: (id) => {
+        const s = get();
+        const o = s.orders.find((x) => x.id === id);
+        if (!o) return { ok: false, msg: 'Đơn không tồn tại!' };
+        // đủ hàng chưa?
+        for (const [pid, n] of Object.entries(o.items)) {
+          if ((s.inv[pid] || 0) < n) {
+            const [nm] = itemName(pid);
+            return { ok: false, msg: `Thiếu ${n - (s.inv[pid] || 0)} ${nm}!` };
+          }
+        }
+        const inv = { ...s.inv };
+        for (const [pid, n] of Object.entries(o.items)) {
+          inv[pid] = (inv[pid] || 0) - n;
+          if (inv[pid] <= 0) delete inv[pid];
+        }
+        set({
+          inv,
+          orders: s.orders.filter((x) => x.id !== id),
+          stats: { ...s.stats, earned: s.stats.earned + o.xu },
+        });
+        if (o.xu) get().addXu(o.xu);
+        if (o.gem) get().addGem(o.gem);
+        sfx.coin();
+        get().toast(`📦 Giao đơn ${o.npc} xong! +${o.xu.toLocaleString('vi-VN')} xu${o.gem ? ` +${o.gem} gem` : ''} +${o.xp} XP`);
+        get().addXP(o.xp); get().checkQuest(); get().checkAchieve();
+        saveSoon();
+        return { ok: true, msg: '' };
+      },
+      rerollOrder: (id) => {
+        const s = get();
+        const o = s.orders.find((x) => x.id === id);
+        if (!o) return { ok: false, msg: 'Đơn không tồn tại!' };
+        if (s.xu < ORDER_REROLL_COST) { sfx.error(); return { ok: false, msg: `Cần ${ORDER_REROLL_COST} xu để đổi đơn!` }; }
+        const today = todayKey();
+        const fresh = rerollGen(s.level, today, id);
+        if (!fresh) return { ok: false, msg: 'Chưa có đơn mới!' };
+        set({ xu: s.xu - ORDER_REROLL_COST, orders: s.orders.map((x) => (x.id === id ? fresh : x)) });
+        sfx.click();
+        get().toast(`🔄 Đã đổi đơn ${o.npc} → đơn của ${fresh.npc} (-${ORDER_REROLL_COST} xu)`);
+        return { ok: true, msg: '' };
+      },
+
       tick: (dt) => {
         const s = get();
         if (!s.started) return;
@@ -634,6 +706,8 @@ export const useGame = create<GameState>()(
             void import('../net/account').then((m) => m.syncNow()).catch(() => {});
           }
         }
+        // qua 00:00 → sinh đơn hàng mới cho ngày mới (kèm lúc refresh daily)
+        if (get().touchOrders()) get().toast('📋 Sổ đơn hàng đã có đơn mới!');
         // cá vừa giật dính: hết 2.5s thì dọn hiệu ứng
         if (s.catchPop && Date.now() > s.catchPop.until) set({ catchPop: null });
         // bị chó cắn: hết 2.5s thì dọn hiệu ứng GÂU!
@@ -666,7 +740,7 @@ export const useGame = create<GameState>()(
           else if (s.weather !== 'sunny') s.toast('Trời nắng trở lại!');
         }
         const raining = weather !== 'sunny'; // mưa + tuyết đều giữ ẩm đất
-        const growthMul = weather === 'snow' ? 0.5 : 1;
+        const weatherMul = weather === 'snow' ? 0.5 : 1;
         // cây
         let changed = false;
         let pestToast: string | null = null;
@@ -674,6 +748,8 @@ export const useGame = create<GameState>()(
           if (pl.locked || pl.state !== 'growing' || !pl.crop) return pl;
           const c = CROPS[pl.crop];
           if (!c) return pl;
+          // phân bón: thường +30%, hữu cơ +60% tốc độ lớn
+          const growthMul = weatherMul * (1 + 0.3 * (pl.fert ?? 0));
           let { progress, watered, waterLeft, pest } = pl;
           if (raining) { watered = true; waterLeft = Math.max(waterLeft, 12); }
           // cây bị sâu thì ngừng lớn cho tới khi phun thuốc
@@ -770,14 +846,26 @@ export const useGame = create<GameState>()(
               plotFx: [...st.plotFx.slice(-7), { plot: i, kind: 'water' as const, at: Date.now(), crop: pl.crop ?? undefined }],
             }));
             sfx.water(); get().toast('Đã tưới nước!'); get().addXP(2); get().checkQuest();
+          } else if ((pl.fert ?? 0) < 2 && ((s.inv.fert || 0) > 0 || (s.inv.fertPro || 0) > 0)) {
+            // bón phân: thường trước (rẻ), hết thường mới bón hữu cơ
+            const usePro = (s.inv.fert || 0) <= 0 && (s.inv.fertPro || 0) > 0;
+            get().addInv(usePro ? 'fertPro' : 'fert', -1);
+            const plots = s.plots.slice(); plots[i] = { ...pl, fert: usePro ? 2 : Math.max(pl.fert ?? 0, 1) };
+            set((st) => ({
+              plots,
+              plotFx: [...st.plotFx.slice(-7), { plot: i, kind: 'fert' as const, at: Date.now(), crop: pl.crop ?? undefined }],
+            }));
+            sfx.spray();
+            get().toast(usePro ? 'Đã bón PHÂN HỮU CƠ 🌟 — lớn nhanh +60%, rớt vàng nhiều hơn!' : 'Đã bón phân 💩 — lớn nhanh +30%!');
+            get().addXP(2); get().checkQuest();
           } else get().toast('Cây đang lớn... ráng đợi nhé!');
         } else if (pl.state === 'ready' && pl.crop) {
           const c = CROPS[pl.crop];
           if (!c) return;
-          // ✨ SỰ KIỆN VÀNG: 8% cây thu hoạch "lấp lánh" — thưởng thêm 1 đơn vị (giá nền giữ nguyên)
-          const golden = Math.random() < 0.08;
+          // ✨ SỰ KIỆN VÀNG: 8% cây thu hoạch "lấp lánh" (có phân hữu cơ +14%, phân thường +6%) — thưởng thêm 1 đơn vị
+          const golden = Math.random() < 0.08 + (pl.fert === 2 ? 0.14 : pl.fert === 1 ? 0.06 : 0);
           get().addInv(pl.crop, golden ? 2 : 1);
-          const plots = s.plots.slice(); plots[i] = { ...pl, state: 'soil', crop: null, progress: 0, watered: false, waterLeft: 0, pest: false };
+          const plots = s.plots.slice(); plots[i] = { ...pl, state: 'soil', crop: null, progress: 0, watered: false, waterLeft: 0, pest: false, fert: 0 };
           const pp = plotPos(i);
           set((st) => ({
             plots,
@@ -814,7 +902,7 @@ export const useGame = create<GameState>()(
         if (!pl || pl.locked || pl.state !== 'soil') return;
         if ((s.inv['seed:' + cropId] || 0) <= 0) { sfx.error(); get().toast('Hết hạt! Mua thêm ở cửa hàng'); set({ modal: 'shop', shopTab: 'seed' }); return; }
         get().addInv('seed:' + cropId, -1);
-        const plots = s.plots.slice(); plots[i] = { ...pl, state: 'growing', crop: cropId, progress: 0, watered: false, waterLeft: 0 };
+        const plots = s.plots.slice(); plots[i] = { ...pl, state: 'growing', crop: cropId, progress: 0, watered: false, waterLeft: 0, fert: 0 };
         set((st) => ({
           plots, modal: null,
           stats: { ...st.stats, planted: st.stats.planted + 1 },
@@ -913,7 +1001,7 @@ export const useGame = create<GameState>()(
           const c = CROPS[pl.crop!];
           inv[pl.crop!] = (inv[pl.crop!] || 0) + 1;
           if (c) xp += c.xp;
-          plots[i] = { ...pl, state: 'soil', crop: null, progress: 0, watered: false, waterLeft: 0, pest: false };
+          plots[i] = { ...pl, state: 'soil', crop: null, progress: 0, watered: false, waterLeft: 0, pest: false, fert: 0 };
           fx.push({ plot: i, kind: 'harvest', at: Date.now(), crop: pl.crop ?? undefined });
         }
         set((st) => ({ plots, inv, stats: { ...st.stats, harvested: st.stats.harvested + targets.length }, plotFx: [...st.plotFx, ...fx].slice(-8) }));
@@ -1031,6 +1119,35 @@ export const useGame = create<GameState>()(
         set((st) => ({ fishes, inv, stats: { ...st.stats, harvested: st.stats.harvested + got.size, collectedAnimal: st.stats.collectedAnimal + got.size } }));
         sfx.harvest(); get().toast(`⚡ Thu hoạch ${got.size} con cá!`);
         get().addXP(xp); get().checkQuest();
+      },
+
+      bulkFert: () => {
+        const s = get();
+        if (s.level < BULK_MIN_LEVEL) { sfx.error(); get().toast(bulkLockedMsg(s.level)); return; }
+        // cây đang lớn, đã tưới, chưa bón hữu cơ → bón (ưu tiên phân thường)
+        const targets = s.plots.map((pl, i) => ({ pl, i }))
+          .filter(({ pl }) => !pl.locked && pl.state === 'growing' && pl.watered && (pl.fert ?? 0) < 2);
+        if (!targets.length) { sfx.error(); get().toast('Không ô nào cần bón phân!'); return; }
+        let fert = s.inv.fert || 0, pro = s.inv.fertPro || 0;
+        if (fert + pro <= 0) { sfx.error(); get().toast('Hết phân bón! Mua ở cửa hàng'); set({ modal: 'shop', shopTab: 'food' }); return; }
+        const plots = s.plots.slice();
+        const fx: { plot: number; kind: 'fert'; at: number; crop?: string }[] = [];
+        let n = 0, usedPro = 0;
+        for (const { pl, i } of targets) {
+          let usePro: boolean;
+          if (fert > 0) { fert--; usePro = false; }
+          else if (pro > 0) { pro--; usePro = true; usedPro++; }
+          else break; // hết phân → dừng
+          // bón thường → ít nhất 1; hữu cơ → luôn 2
+          plots[i] = { ...pl, fert: usePro ? 2 : Math.max(pl.fert ?? 0, 1) };
+          fx.push({ plot: i, kind: 'fert', at: Date.now(), crop: pl.crop ?? undefined });
+          n++;
+        }
+        const inv = { ...s.inv, fert, fertPro: pro };
+        set((st) => ({ plots, inv, plotFx: [...st.plotFx, ...fx].slice(-8) }));
+        sfx.spray();
+        get().toast(n < targets.length ? `⚡ Bón ${n}/${targets.length} ô (hết phân!)` : `⚡ Đã bón phân ${n} ô${usedPro ? ` (trong đó ${usedPro} ô phân hữu cơ 🌟)` : ''}!`);
+        get().addXP(2 * n); get().checkQuest();
       },
 
       interactPond: (uid) => {
@@ -1204,6 +1321,14 @@ export const useGame = create<GameState>()(
         set({ xu: s.xu - cost }); get().addInv('pesticide', n); sfx.coin();
         get().toast(`Mua ${n} thuốc trừ sâu!`);
       },
+      buyFert: (id, n) => {
+        const s = get();
+        const price = id === 'fertPro' ? FERT_PRO_PRICE : FERT_PRICE;
+        const cost = price * n;
+        if (s.xu < cost) { sfx.error(); get().toast('Không đủ xu!'); return; }
+        set({ xu: s.xu - cost }); get().addInv(id, n); sfx.coin();
+        get().toast(id === 'fertPro' ? `Mua ${n} Phân hữu cơ 🌟!` : `Mua ${n} Phân bón 💩!`);
+      },
       exchangeGem: () => {
         const s = get();
         if (s.gem < 5) { sfx.error(); get().toast('Cần 5 gem!'); return; }
@@ -1339,7 +1464,7 @@ export const useGame = create<GameState>()(
         const pl = s.plots[plot];
         if (!pl || pl.locked || pl.state !== 'ready' || pl.crop !== crop) return false;
         const plots = s.plots.slice();
-        plots[plot] = { ...pl, state: 'soil', crop: null, progress: 0, watered: false, waterLeft: 0, pest: false };
+        plots[plot] = { ...pl, state: 'soil', crop: null, progress: 0, watered: false, waterLeft: 0, pest: false, fert: 0 };
         set({ plots });
         return true;
       },
@@ -1504,6 +1629,7 @@ export const useGame = create<GameState>()(
           quality: 'high', autoQuality: true, autoLevel: 'medium', resMode: 'auto', kem: false,
           modal: null, fishingSpot: null, biteAt: null, biteUntil: null, fishingBait: null, biteCatchId: null, biteCombo: null, biteProgress: 0, catchPop: null, petFx: null, plotFx: [], toasts: [], scene: 'farm',
           floatTexts: [], goldenHarvests: 0, lastCatchGameAt: 0, catchGameCooldown: 0,
+          orders: [], ordersDate: '',
           interiorId: null, inAct: null, baLove: 0, loveClaim: [], fundTotal: 0, fundClaim: [],
           daily: freshDaily(1),
           junkAt: 0, speedUntil: null, stageColor: '#ffd24d',
@@ -1553,6 +1679,8 @@ export const useGame = create<GameState>()(
         stageColor: s.stageColor,
         // ── game juice + thành tựu + minigame (persist để giữ tiến trình) ──
         achSeen: s.achSeen, goldenHarvests: s.goldenHarvests, catchGameBest: s.catchGameBest,
+        // ── sổ đơn hàng (persist + sync DB) ──
+        orders: s.orders, ordersDate: s.ordersDate,
       }),
       // Custom storage: debounced write (max 1 write / 2s) để tránh localStorage I/O thrash
       // State trong memory vẫn cập nhật đầy đủ mỗi frame; localStorage chỉ lag ~2s.

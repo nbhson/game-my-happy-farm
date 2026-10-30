@@ -1,7 +1,7 @@
 // ===== Account theo username: TOÀN BỘ farm nằm trong DB =====
 // Nhập đúng username → lấy lại farm, bất kể reload/tab khác/máy khác.
 // Backend tự chọn: LAN server (DB `server/data/db.json`) → localStorage theo user.
-import type { Animal, CoopCap, DailyState, GraphicsQuality, PondFish, Plot, ResMode, Stats, WeatherKind } from '../game/types';
+import type { Animal, CoopCap, DailyState, FarmOrder, GraphicsQuality, PondFish, Plot, ResMode, Stats, WeatherKind } from '../game/types';
 import { useGame } from '../game/store';
 import { useVillage } from './village';
 import { lanServerAvailable } from './socket';
@@ -36,6 +36,8 @@ export interface AccountData {
   viewH?: number;
   kem?: boolean;
   stageColor?: string;
+  /** Sổ đơn hàng: 3 đơn NPC theo ngày thực */
+  orders?: FarmOrder[]; ordersDate?: string;
   /** ms lúc export — để so bản nào mới hơn khi server/local lệch nhau */
   updatedAt?: number;
 }
@@ -157,6 +159,7 @@ export function exportAccount(): AccountData {
     ownedCars: g.ownedCars, activeCar: g.activeCar,
     quality: g.quality, autoQuality: g.autoQuality, resMode: g.resMode, viewH: g.viewH, kem: g.kem,
     stageColor: g.stageColor,
+    orders: g.orders, ordersDate: g.ordersDate,
     updatedAt: Date.now(),
   };
 }

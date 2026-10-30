@@ -47,7 +47,7 @@ export interface RenderState {
   carKind?: string | null;
   carId?: string | null;
   /** hiệu ứng động tác trên ô ruộng (transient, store tự dọn) */
-  plotFx?: { plot: number; kind: 'hoe' | 'plant' | 'water' | 'spray' | 'harvest'; at: number; crop?: string }[];
+  plotFx?: { plot: number; kind: 'hoe' | 'plant' | 'water' | 'spray' | 'fert' | 'harvest'; at: number; crop?: string }[];
   /** chữ thưởng bay lên (+1 Cà rốt / +120 xu / +2 ✨) — transient, store tự dọn */
   floatTexts?: { x: number; y: number; text: string; color: string; at: number }[];
   /** cấp đồ họa: high đủ hiệu ứng / medium giảm một nửa / low tắt bóng + tia lửa + ambient */
@@ -606,9 +606,28 @@ function drawPlotSoil(ctx: CanvasRenderingContext2D, X: number, Y: number, w: nu
 
 /** Hiệu ứng động tác trên ô ruộng: cuốc / gieo / tưới / phun / thu hoạch.
  *  p = 0..1 tiến trình (~1.3s). Vẽ ngay trên ô đất nên màn nào cũng thấy. */
-function drawPlotFx(ctx: CanvasRenderingContext2D, X: number, Y: number, w: number, h: number, kind: 'hoe' | 'plant' | 'water' | 'spray' | 'harvest', p: number, t: number, crop?: string) {
+function drawPlotFx(ctx: CanvasRenderingContext2D, X: number, Y: number, w: number, h: number, kind: 'hoe' | 'plant' | 'water' | 'spray' | 'fert' | 'harvest', p: number, t: number, crop?: string) {
   const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-  if (kind === 'hoe') {
+  if (kind === 'fert') {
+    // bón phân: túi phân rắc xuống + vệt xanh bay lên (cây phủ phục nhanh hơn)
+    for (let k = 0; k < 5; k++) {
+      const ph = clamp01(p * 1.5 - k * 0.14);
+      if (ph <= 0) continue;
+      const gx = X - 18 + k * 9;
+      const gy = Y + 8 - Math.sin(ph * Math.PI) * 22;
+      ctx.globalAlpha = 1 - ph * 0.75;
+      ctx.fillStyle = '#6b4f2a';
+      ctx.beginPath(); ctx.ellipse(gx, gy, 3.4, 2.6, 0.4, 0, 7); ctx.fill();
+      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(40,25,8,.7)'; ctx.stroke();
+      ctx.globalAlpha = 1;
+      // chấm sáng xanh lá (cây hấp thu)
+      if (ph > 0.3) {
+        ctx.fillStyle = `rgba(140,255,120,${(0.9 - ph).toFixed(2)})`;
+        ctx.beginPath(); ctx.arc(gx + 2, gy - 8 - ph * 14, 2.2, 0, 7); ctx.fill();
+      }
+    }
+    if (p > 0.5 && p < 0.95) drawSparkle(ctx, X, Y - h / 2 - 10, 5, 0.9);
+  } else if (kind === 'hoe') {
     // cuốc bổ xuống 2 nhát: cán cuốc xoay + đất văng + bụi
     const swing = Math.sin(p * Math.PI * 2) * 0.55;
     ctx.save();
@@ -5819,6 +5838,19 @@ export function renderWorld(ctx: CanvasRenderingContext2D, W: number, H: number,
       const stage = pl.state === 'ready' ? 4 : cropStage(pl.progress);
       drawCropPlant(ctx, X, Y + 10, pl.crop, stage, t, i);
       if (pl.pest) drawPests(ctx, X, Y + 10, t, i);
+      // badge phân bón: túi xanh lá + mũi tên tốc độ (hữu cơ có quầng vàng)
+      if ((pl.fert ?? 0) > 0) {
+        const fx2 = X - pp.w / 2 + 10, fy2 = Y - pp.h / 2 + 12;
+        axFrame(ctx, fx2 - 9, fy2 - 9, 18, 18, 8, pl.fert === 2 ? '#ffe082' : '#dcedc8', 2);
+        ctx.fillStyle = pl.fert === 2 ? '#8bc34a' : '#5d8a3c';
+        ctx.beginPath(); ctx.ellipse(fx2, fy2 + 3, 6, 4.6, 0, 0, 7); ctx.fill();
+        ctx.lineWidth = 1.2; ctx.strokeStyle = ANIME_OUT; ctx.stroke();
+        // mũi tên lên (lớn nhanh)
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(fx2, fy2 + 1); ctx.lineTo(fx2, fy2 - 4); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(fx2 - 2.2, fy2 - 2); ctx.lineTo(fx2, fy2 - 4.4); ctx.lineTo(fx2 + 2.2, fy2 - 2); ctx.stroke();
+        if (Math.sin(t * 3 + i * 1.3) > 0.5) drawSparkle(ctx, fx2 + 8, fy2 - 10, 3.6, 0.85);
+      }
       // thanh tăng trưởng anime + nhãn pill (Thấp: chỉ hiện khi chín/bị sâu cho đỡ measureText+strokeText)
       const bw = pp.w - 10;
       axBar(ctx, X, Y + pp.h / 2 - 10, bw, pl.state === 'ready' ? 1 : Math.min(1, pl.progress), pl.pest ? '#e53935' : pl.state === 'ready' ? '#ffeb3b' : stage <= 1 ? '#8cff49' : stage === 2 ? '#39d353' : '#00e0b0');

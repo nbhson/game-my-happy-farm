@@ -104,6 +104,9 @@ export const BAIT_PRICE = 10;
 export const BAIT_PRO_PRICE = 45;
 /** Thuốc trừ sâu: phun khi cây bị sâu (cây ngừng lớn khi có sâu) */
 export const PEST_PRICE = 20;
+/** Phân bón: bón cho cây đang lớn → lớn nhanh hơn + tỉ lệ cây vàng cao hơn */
+export const FERT_PRICE = 40;      // phân thường: +30% tốc độ lớn, +6% vàng
+export const FERT_PRO_PRICE = 120; // phân hữu cơ: +60% tốc độ lớn, +14% vàng
 /** Tỉ lệ sâu ngẫu nhiên mỗi giây trên mỗi cây đang lớn (trung bình ~7 phút/cây) */
 export const PEST_RATE = 0.0025;
 
@@ -125,12 +128,22 @@ export const PRODUCT_NAMES: Record<string, [string, string]> = {
   bait: ['Mồi thường', ''],
   baitPro: ['Mồi ngon', ''],
   pesticide: ['Thuốc trừ sâu', ''],
+  fert: ['Phân bón', '💩'],
+  fertPro: ['Phân hữu cơ', '🌟'],
   ung: ['Ủng cũ', ''],
   rong: ['Rong biển', ''],
   // --- món ăn nấu trong Nhà cô Ba (bán được giá cao hơn tổng nguyên liệu) ---
   flan: ['Bánh flan', '🍮'],
   saladtron: ['Salad trộn', '🥗'],
   thitkho: ['Thịt kho trứng', '🍲'],
+  // --- công thức mới: từ quà farm thành đặc sản giá cao ---
+  banhchung: ['Bánh chưng', '🥮'],
+  phomai: ['Phô mai', '🧀'],
+  bapnuong: ['Bắp nướng', '🌽'],
+  trathaomoc: ['Trà thảo mộc', '🍵'],
+  kemduahau: ['Kem dưa hấu', '🍦'],
+  keodautrang: ['Kẹo đậu phộng', '🍬'],
+  vangngo: ['Rượu vang', '🍷'],
 };
 
 export function itemName(pid: string): [string, string] {
@@ -165,11 +178,20 @@ export function sellPrice(pid: string): number {
   if (pid === 'bait') return 5;
   if (pid === 'baitPro') return 22;
   if (pid === 'pesticide') return 10;
+  if (pid === 'fert') return 10;
+  if (pid === 'fertPro') return 30;
   if (pid === 'ung') return 3;
   if (pid === 'rong') return 2;
   if (pid === 'flan') return 300;
   if (pid === 'saladtron') return 430;
   if (pid === 'thitkho') return 740;
+  if (pid === 'banhchung') return 190;
+  if (pid === 'phomai') return 380;
+  if (pid === 'bapnuong') return 1200;
+  if (pid === 'trathaomoc') return 780;
+  if (pid === 'kemduahau') return 2100;
+  if (pid === 'keodautrang') return 5200;
+  if (pid === 'vangngo') return 8000;
   return 1;
 }
 
