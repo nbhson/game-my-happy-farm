@@ -268,6 +268,7 @@ function SysMenu({ compact, mute, onToggleMute }: { compact?: boolean; mute: boo
     >
       <Item icon={<Gift size={20} />} label="Nhập code nhận quà (G)" desc="Code bí mật mỗi đợt" onClick={() => s.setModal('gift')} />
       <Item icon="🏆" label="Thành tựu" desc="Xem tiến độ + phần thưởng" onClick={() => s.setModal('ach')} />
+      <Item icon="⭐" label="Kỹ năng" desc="Nông / Chăn / Câu — XP tự tích, perk vĩnh viễn" onClick={() => s.setModal('skills')} />
       <Item icon={<Settings size={20} />} label="Cài đặt" desc="Đồ họa, độ phân giải" onClick={() => s.setModal('settings')} />
       <Item icon={mute ? <VolumeX size={20} /> : <Volume2 size={20} />} label={mute ? 'Bật âm thanh' : 'Tắt âm thanh'} desc="Nhạc + hiệu ứng" onClick={onToggleMute} />
     </Drop>

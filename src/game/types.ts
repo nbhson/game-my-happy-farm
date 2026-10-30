@@ -63,7 +63,7 @@ export interface Stats {
 
 export type ModalKind =
   | null
-  | 'shop' | 'bag' | 'quest' | 'help' | 'village' | 'townChat' | 'townEmote' | 'casino' | 'gift' | 'outfit' | 'settings' | 'lottery' | 'carshop' | 'race' | 'market' | 'board' | 'wedding' | 'smith' | 'ach' | 'catchgame' | 'orders'
+  | 'shop' | 'bag' | 'quest' | 'help' | 'village' | 'townChat' | 'townEmote' | 'casino' | 'gift' | 'outfit' | 'settings' | 'lottery' | 'carshop' | 'race' | 'market' | 'board' | 'wedding' | 'smith' | 'ach' | 'catchgame' | 'orders' | 'skills'
   | { name: 'seed'; plot: number }
   | { name: 'stock' }
   | { name: 'bait'; pier: number }
