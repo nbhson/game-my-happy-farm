@@ -7,6 +7,7 @@ import { mallCount, townCount, useVillage } from '../net/village';
 import { isRaceBot, progScore, racePct, RACE_LAPS, useRace } from '../net/race';
 import { isSoundOn, setSoundOn } from '../game/audio';
 import { GameIcon } from './GameIcon';
+import { isFestivalToday } from '../game/festival';
 import { goToFarm, goToMall, goToTown } from './GameCanvas';
 
 // ===== Dropdown menu dùng chung cho toolbar (gọn thay vì dàn hàng chục nút) =====
@@ -269,6 +270,7 @@ function SysMenu({ compact, mute, onToggleMute }: { compact?: boolean; mute: boo
       <Item icon={<Gift size={20} />} label="Nhập code nhận quà (G)" desc="Code bí mật mỗi đợt" onClick={() => s.setModal('gift')} />
       <Item icon="🏆" label="Thành tựu" desc="Xem tiến độ + phần thưởng" onClick={() => s.setModal('ach')} />
       <Item icon="⭐" label="Kỹ năng" desc="Nông / Chăn / Câu — XP tự tích, perk vĩnh viễn" onClick={() => s.setModal('skills')} />
+      <Item icon="🐭" label="Đuổi chuột kho lúa" desc="20s dập đầu chuột — điểm đổi xu" onClick={() => s.setModal('mole')} />
       <Item icon={<Settings size={20} />} label="Cài đặt" desc="Đồ họa, độ phân giải" onClick={() => s.setModal('settings')} />
       <Item icon={mute ? <VolumeX size={20} /> : <Volume2 size={20} />} label={mute ? 'Bật âm thanh' : 'Tắt âm thanh'} desc="Nhạc + hiệu ứng" onClick={onToggleMute} />
     </Drop>
@@ -344,6 +346,9 @@ export default function HUD() {
               <div className="bg-[#3e3428] border-2 border-black rounded-lg px-1.5 py-1.5 text-[11px] font-extrabold flex items-center gap-1 shrink-0"><GameIcon name="calendar" size={14} /> N{s.day}</div>
               <div className="bg-[#3e3428] border-2 border-black rounded-lg px-1.5 py-1.5 text-[11px] font-extrabold flex items-center gap-1 shrink-0 text-orange-300" role="status" title={`Chuỗi đăng nhập ${s.daily.streak ?? 1} ngày liên tiếp`}><span aria-hidden="true">🔥</span>{s.daily.streak ?? 1}</div>
               <div className="bg-[#3e3428] border-2 border-black rounded-lg px-1.5 py-1.5 text-[11px] font-extrabold flex items-center gap-1 shrink-0" title={weatherLabel} role="img" aria-label={`Thời tiết: ${weatherLabel}`}><GameIcon name={weatherIcon} size={14} /></div>
+              {isFestivalToday() && (
+                <button className="bg-purple-700 border-2 border-black rounded-lg px-1.5 py-1.5 text-[11px] font-extrabold flex items-center gap-1 shrink-0 text-yellow-200 animate-pulse" title="Chợ lễ hội cuối tuần: bán x1.25, đơn hàng NPC x1.3" onClick={() => s.setModal('shop')}>🎪</button>
+              )}
               <button className="icon-btn !w-9 !h-9 !text-black relative shrink-0" title="Làng (V)" aria-label="Làng — bạn bè và bảng tin (phím V)" onClick={() => s.setModal('village')}>
                 <Users size={18} />
                 {online > 0 && (

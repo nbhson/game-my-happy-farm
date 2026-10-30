@@ -28,6 +28,7 @@ import AchModal from './AchModal';
 import CatchGameModal from './CatchGameModal';
 import OrdersModal from './OrdersModal';
 import SkillsModal from './SkillsModal';
+import MoleModal from './MoleModal';
 import { GameIcon } from './GameIcon';
 
 // Casino (sảnh + 5 bàn + logic bài) nặng — tải lười khi mở, nhẹ bundle lúc đăng nhập
@@ -60,6 +61,7 @@ export default function ModalHost() {
   else if (modal === 'catchgame') { icon = 'basket'; title = '🧺 BẮT RAU VÀNG'; body = <CatchGameModal />; }
   else if (modal === 'orders') { icon = 'mail'; title = '📋 SỔ ĐƠN HÀNG'; body = <OrdersModal />; }
   else if (modal === 'skills') { icon = 'star'; title = '⭐ KỸ NĂNG'; body = <SkillsModal />; }
+  else if (modal === 'mole') { icon = 'basket'; title = '🐭 ĐUỔI CHUỘT KHO LÚA'; body = <MoleModal />; }
   else if (modal === 'settings') { icon = 'quest'; title = 'CÀI ĐẶT'; body = <SettingsModal />; }
   else if (typeof modal === 'object' && modal.name === 'house') {
     const hn = modal.house === 'cafe' ? 'QUÁN CÀ PHÊ MÈO' : modal.house === 'stage' ? 'SÂN KHẤU SỰ KIỆN'

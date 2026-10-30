@@ -20,6 +20,7 @@ import { farmGrowthMul, farmGoldenBonus, animalPriceMul, animalHungerMul, fishPr
 import { sfx } from './audio';
 import { reportContestCatch } from '../net/contest';
 import { GIFTCODES, normalizeCode, rewardSummary } from './giftcodes';
+import { isFestivalToday, FESTIVAL_SELL_MUL, FESTIVAL_ORDER_MUL } from './festival';
 
 /** pid sản phẩm vật nuôi (trứng/sữa/lông…) — bán được thưởng perk kỹ năng Chăn nuôi */
 const ANIMAL_PIDS = new Set(Object.values(ANIMALS).map((a) => a.productId));
@@ -128,6 +129,13 @@ interface GameState {
   // ── Kỹ năng người chơi: XP riêng cho Nông/Chăn/Câu (persist + sync DB) ──
   skills: { farm: number; animal: number; fish: number };
 
+  // ── Sự kiện Đợt 3 ──
+  /** Cầu vồng sau mưa (epoch ms hết hạn, transient): cây vàng x2 + XP thu hoạch x2 */
+  rainbowUntil: number | null;
+  /** Minigame đuổi chuột: best score (persist) + cooldown hết hạn (transient) */
+  moleBest: number;
+  moleCooldown: number;
+
   // actions
   /** Đăng nhập bằng username: có snapshot DB thì migrate + dùng, không thì farm mới */
   loadAccount: (name: string, avatar: number, data: {
@@ -149,6 +157,7 @@ interface GameState {
     stageColor?: string;
     orders?: FarmOrder[]; ordersDate?: string;
     skills?: { farm: number; animal: number; fish: number };
+    moleBest?: number;
   } | null) => void;
   toast: (msg: string) => void;
   dismissToast: (id: number) => void;
@@ -207,6 +216,8 @@ interface GameState {
   buyFert: (id: 'fert' | 'fertPro', n: number) => void;
   /** Cộng XP kỹ năng (farm/animal/fish) từ hành động — tự lên cấp + toast thưởng */
   skillXp: (kind: SkillKind, action: string, times?: number) => void;
+  /** Kết thúc minigame đuổi chuột: đổi điểm lấy xu (kèm best + cooldown) */
+  moleResult: (score: number) => { xu: number; gem: number; best: boolean };
   exchangeGem: () => void;
   buyOutfit: (id: string) => void;
   wearOutfit: (id: string) => void;
@@ -433,6 +444,8 @@ export const useGame = create<GameState>()(
       catchGameBest: 0, lastCatchGameAt: 0, catchGameCooldown: 0,
       orders: [], ordersDate: '',
       skills: { farm: 0, animal: 0, fish: 0 },
+      rainbowUntil: null,
+      moleBest: 0, moleCooldown: 0,
       viewH: defaultViewH(),
       kem: false,
       petFx: null,
@@ -495,6 +508,7 @@ export const useGame = create<GameState>()(
             skills: data.skills && typeof data.skills === 'object'
               ? { farm: data.skills.farm || 0, animal: data.skills.animal || 0, fish: data.skills.fish || 0 }
               : { farm: 0, animal: 0, fish: 0 },
+            moleBest: typeof data.moleBest === 'number' ? data.moleBest : 0,
           });
         } else {
           set({
@@ -514,6 +528,7 @@ export const useGame = create<GameState>()(
             floatTexts: [], goldenHarvests: 0, lastCatchGameAt: 0, catchGameCooldown: 0,
             orders: [], ordersDate: '',
             skills: { farm: 0, animal: 0, fish: 0 },
+            moleBest: 0,
             baLove: 0, loveClaim: [], fundTotal: 0, fundClaim: [],
             daily: freshDaily(1), junkAt: 0,
           });
@@ -622,6 +637,24 @@ export const useGame = create<GameState>()(
         get().checkAchieve();
         return { xu, gem, best };
       },
+      moleResult: (score) => {
+        const s = get();
+        const xu = Math.round(score * 12);
+        const gem = score >= 20 ? 1 : 0;
+        const best = score > s.moleBest;
+        set((st) => ({
+          xu: st.xu + xu, gem: st.gem + gem,
+          moleBest: Math.max(st.moleBest, score),
+          moleCooldown: Date.now() + 60 * 1000, // 1 phút chơi lại
+          stats: { ...st.stats, earned: st.stats.earned + xu },
+        }));
+        sfx.finish(); sfx.coin();
+        get().toast(best
+          ? `🥇 KỶ LỤC ĐUỔI CHUỘT ${score} điểm! +${xu} xu${gem ? ' +1 gem' : ''}`
+          : `🐭 Kết thúc ${score} điểm · +${xu} xu${gem ? ' +1 gem' : ''}`);
+        get().checkAchieve();
+        return { xu, gem, best };
+      },
       addInv: (pid, n) => set((s) => {
         const inv = { ...s.inv };
         inv[pid] = (inv[pid] || 0) + n;
@@ -681,10 +714,12 @@ export const useGame = create<GameState>()(
           orders: s.orders.filter((x) => x.id !== id),
           stats: { ...s.stats, earned: s.stats.earned + o.xu },
         });
-        if (o.xu) get().addXu(o.xu);
+        // 🎪 lễ hội cuối tuần: NPC trả hậu hĩnh hơn
+        const gotXu = Math.round(o.xu * (isFestivalToday() ? FESTIVAL_ORDER_MUL : 1));
+        if (gotXu > 0) get().addXu(gotXu);
         if (o.gem) get().addGem(o.gem);
         sfx.coin();
-        get().toast(`📦 Giao đơn ${o.npc} xong! +${o.xu.toLocaleString('vi-VN')} xu${o.gem ? ` +${o.gem} gem` : ''} +${o.xp} XP`);
+        get().toast(`📦 Giao đơn ${o.npc} xong! +${gotXu.toLocaleString('vi-VN')} xu${isFestivalToday() ? ' 🎪' : ''}${o.gem ? ` +${o.gem} gem` : ''} +${o.xp} XP`);
         get().addXP(o.xp); get().checkQuest(); get().checkAchieve();
         saveSoon();
         return { ok: true, msg: '' };
@@ -727,6 +762,8 @@ export const useGame = create<GameState>()(
         if (s.catchPop && Date.now() > s.catchPop.until) set({ catchPop: null });
         // bị chó cắn: hết 2.5s thì dọn hiệu ứng GÂU!
         if (s.thiefBiteUntil && Date.now() > s.thiefBiteUntil) set({ thiefBiteUntil: null });
+        // 🌈 cầu vồng sau mưa: hết hạn thì dọn
+        if (s.rainbowUntil && Date.now() > s.rainbowUntil) set({ rainbowUntil: null });
         // xoa đầu / vuốt ve: hết 2.6s thì dọn
         if (s.petFx && Date.now() - s.petFx.at > 2600) set({ petFx: null });
         // dọn hiệu ứng động tác ruộng đã quá 1.5s
@@ -752,7 +789,14 @@ export const useGame = create<GameState>()(
           weatherLeft = r.dur;
           if (weather === 'rain') s.toast('Trời mưa! Cây được tưới tự động');
           else if (weather === 'snow') s.toast('Tuyết rơi! Cây lớn chậm lại');
-          else if (s.weather !== 'sunny') s.toast('Trời nắng trở lại!');
+          else if (s.weather !== 'sunny') {
+            s.toast('Trời nắng trở lại!');
+            // 🌈 SỰ KIỆN CẦU VỒNG: vừa tạnh mưa → 90s cây vàng x2 + XP thu hoạch x2
+            if (s.weather === 'rain') {
+              set({ rainbowUntil: Date.now() + 90000 });
+              s.toast('🌈 CẦU VỒNG XUẤT HIỆN! 90s: cây vàng x2, thu hoạch x2 XP!');
+            }
+          }
         }
         const raining = weather !== 'sunny'; // mưa + tuyết đều giữ ẩm đất
         const weatherMul = weather === 'snow' ? 0.5 : 1;
@@ -879,8 +923,9 @@ export const useGame = create<GameState>()(
         } else if (pl.state === 'ready' && pl.crop) {
           const c = CROPS[pl.crop];
           if (!c) return;
-          // ✨ SỰ KIỆN VÀNG: 8% + phân hữu cơ +14%/thường +6% + kỹ năng Nông — thưởng thêm 1 đơn vị
-          const golden = Math.random() < 0.08 + farmGoldenBonus(s.skills.farm) + (pl.fert === 2 ? 0.14 : pl.fert === 1 ? 0.06 : 0);
+          // ✨ SỰ KIỆN VÀNG: 8% + phân hữu cơ +14%/thường +6% + kỹ năng Nông + 🌈 cầu vồng x2 — thưởng thêm 1 đơn vị
+          const rb = s.rainbowUntil != null && Date.now() < s.rainbowUntil;
+          const golden = Math.random() < Math.min(0.5, (0.08 + farmGoldenBonus(s.skills.farm) + (pl.fert === 2 ? 0.14 : pl.fert === 1 ? 0.06 : 0)) * (rb ? 2 : 1));
           get().addInv(pl.crop, golden ? 2 : 1);
           const plots = s.plots.slice(); plots[i] = { ...pl, state: 'soil', crop: null, progress: 0, watered: false, waterLeft: 0, pest: false, fert: 0 };
           const pp = plotPos(i);
@@ -897,7 +942,7 @@ export const useGame = create<GameState>()(
           }));
           if (golden) { sfx.golden(); get().toast(`✨ ${c.name} VÀNG! Thưởng thêm 1 ${c.name}!`); }
           else { sfx.harvest(); get().toast(`Thu hoạch +1 ${c.name}!`); }
-          get().addXP(golden ? c.xp * 2 : c.xp); get().checkQuest(); get().checkAchieve();
+          get().addXP((golden ? c.xp * 2 : c.xp) * (rb ? 2 : 1)); get().checkQuest(); get().checkAchieve();
           get().skillXp('farm', 'harvest');
         }
       },
@@ -1028,7 +1073,8 @@ export const useGame = create<GameState>()(
         }
         set((st) => ({ plots, inv, stats: { ...st.stats, harvested: st.stats.harvested + targets.length }, plotFx: [...st.plotFx, ...fx].slice(-8) }));
         sfx.harvest(); get().toast(`⚡ Thu hoạch ${targets.length} ô! Bán ở shop nhé`);
-        get().addXP(xp); get().checkQuest();
+        // 🌈 cầu vồng: XP thu hoạch x2 cả khi bulk
+        get().addXP(xp * (s.rainbowUntil != null && Date.now() < s.rainbowUntil ? 2 : 1)); get().checkQuest();
         get().skillXp('farm', 'harvest', targets.length);
       },
 
@@ -1523,11 +1569,14 @@ export const useGame = create<GameState>()(
         const price = FISHES[pid] ? Math.round(sellPrice(pid) * fishPriceMul(s.skills.fish))
           : ANIMAL_PIDS.has(pid) ? Math.round(sellPrice(pid) * animalPriceMul(s.skills.animal))
           : sellPrice(pid);
+        // 🎪 Chợ lễ hội cuối tuần: chợ đông khách → mọi thứ bán được giá hơn
+        const fest = isFestivalToday() ? FESTIVAL_SELL_MUL : 1;
         get().addInv(pid, -k);
-        get().addXu(price * k);
+        get().addXu(Math.round(price * fest) * k);
         get().addXP(Math.min(40, k * 2));
         sfx.coin();
-        get().toast(price > sellPrice(pid) ? `+${price * k} xu! (thưởng kỹ năng 🎓)` : `+${price * k} xu!`);
+        const festNote = fest > 1 ? ' 🎪 lễ hội x1.25!' : '';
+        get().toast(price > sellPrice(pid) ? `+${Math.round(price * fest) * k} xu! (thưởng kỹ năng 🎓)${festNote}` : `+${Math.round(price * fest) * k} xu!${festNote}`);
         get().checkQuest(); get().checkAchieve();
       },
       sellAnimal: (uid) => {
@@ -1684,6 +1733,7 @@ export const useGame = create<GameState>()(
           floatTexts: [], goldenHarvests: 0, lastCatchGameAt: 0, catchGameCooldown: 0,
           orders: [], ordersDate: '',
           skills: { farm: 0, animal: 0, fish: 0 },
+          rainbowUntil: null, moleBest: 0, moleCooldown: 0,
           interiorId: null, inAct: null, baLove: 0, loveClaim: [], fundTotal: 0, fundClaim: [],
           daily: freshDaily(1),
           junkAt: 0, speedUntil: null, stageColor: '#ffd24d',
@@ -1736,6 +1786,7 @@ export const useGame = create<GameState>()(
         // ── sổ đơn hàng + kỹ năng (persist + sync DB) ──
         orders: s.orders, ordersDate: s.ordersDate,
         skills: s.skills,
+        moleBest: s.moleBest,
       }),
       // Custom storage: debounced write (max 1 write / 2s) để tránh localStorage I/O thrash
       // State trong memory vẫn cập nhật đầy đủ mỗi frame; localStorage chỉ lag ~2s.
