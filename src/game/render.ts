@@ -10,6 +10,7 @@ import { BARN, COOP, FARM, PEN_MB, PIERS, POND, RIVER, RIVER_WATER_Y, ROAD_H, RO
 import { animalPos, fishPos, KEM_UID, PETS, petPos } from './systems';
 import { drawBasket, drawChickenHead, drawCowHead, drawCropGeneric, drawDrop, drawEnvelope, drawExclaimBadge, drawFeedBowl, drawFish, drawHoeMini, drawLock, drawMoon, drawPumpkin, drawSeedDot, drawSleepZ, drawSparkle, drawSprout, drawStar, drawSun, drawTreeFruit, setFxLevel } from './icons';
 import { drawUltraPost, drawHighPost, isUltra } from './ultra';
+import { ultraAnimalDetail, ultraCropDetail, ultraGrassDetail, ultraTreeDetail, ultraWaterDetail } from './ultraArt';
 
 export interface VisitorDraw {
   x: number; y: number; dir: number; moving: boolean;
@@ -89,6 +90,14 @@ function drawHaySky(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }
     for (let i = 0; i < 4; i++) {
       const cxm = ((((i * 420 + t * 12 - cam.x * 0.12) % (W + 260)) + (W + 260)) % (W + 260)) - 130;
       axCloud(ctx, cxm, horizon * 0.25 + i * 26, 12, 0.9);
+    }
+  }
+  // ULTRA: 2 mây phụ to hơn + lấp lánh viền mây (không phủ màu)
+  if (Q_ULTRA && !night) {
+    for (let i = 0; i < 2; i++) {
+      const cxm = (((i * 590 + t * 9 - cam.x * 0.12) % (W + 300)) + (W + 300)) % (W + 300) - 150;
+      axCloud(ctx, cxm, horizon * (0.12 + i * 0.14), 16, 0.95);
+      if (Math.sin(t * 1.4 + i * 2.6) > 0.55) drawSparkle(ctx, cxm + 34, horizon * 0.25 + i * 22, 4, 0.8);
     }
   }
   // hàng cây tròn xa (parallax 0.4) — tán to thân lùn như ảnh
@@ -343,6 +352,18 @@ function drawGrassBase(ctx: CanvasRenderingContext2D, cam: { x: number; y: numbe
       ell(ctx, px + 5 + Math.cos(a) * 3.4, pyW - 4 + Math.sin(a) * 3.4, 1.3, 1.3);
     }
   }
+  // ULTRA: thảm cỏ dày đỉnh cao — bụi cỏ gradient + hoa li ti + cỏ 4 lá
+  // (không phải lớp phủ màu: mỗi nét nằm đúng toạ độ element, hình luôn rõ)
+  if (Q_ULTRA) {
+    ultraGrassDetail(ctx, cam, W, H, t, (wx, wy) =>
+      (wx > 20 && wx < 1000 && wy > 210 && wy < 710) || // ruộng
+      (wx > 1050 && wx < 1560 && wy > 200 && wy < 660) || // ao
+      (wx > 30 && wx < 1030 && wy > 780 && wy < 1050) || // chuồng
+      (wx > ROAD_V.x - 16 && wx < ROAD_V.x + ROAD_V.w + 16) ||
+      (wy > ROAD_H.y - 16 && wy < ROAD_H.y + ROAD_H.h + 16) ||
+      (wy > 1010 && wy < WORLD.h) ||
+      (wx > 1120 && wx < 1360 && wy > 790 && wy < 990));
+  }
 }
 
 function drawRoad(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, t: number) {
@@ -443,6 +464,29 @@ function drawFence(ctx: CanvasRenderingContext2D, cam: { x: number; y: number })
     // vân gỗ
     ctx.strokeStyle = 'rgba(90,50,20,.35)'; ctx.lineWidth = 1.3;
     ctx.beginPath(); ctx.moveTo(X - 2, Y - 4); ctx.lineTo(X - 2, Y + 12); ctx.stroke();
+    // ULTRA: dây hoa leo trụ (deterministic theo toạ độ)
+    if (Q_ULTRA) {
+      ctx.strokeStyle = 'rgba(60,110,50,.8)'; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(X + 5, Y + 12);
+      ctx.quadraticCurveTo(X + 8 + Math.sin(Y * 0.3) * 2, Y, X + 4, Y - 8);
+      ctx.stroke();
+      for (let k = 0; k < 3; k++) {
+        const ly = Y + 8 - k * 6;
+        ctx.fillStyle = k % 2 ? '#3f8f3a' : '#57b04b';
+        ctx.beginPath(); ctx.ellipse(X + 6 + (k % 2) * 3, ly, 3.4, 2.2, 0.6, 0, 7); ctx.fill();
+        ctx.lineWidth = 0.8; ctx.strokeStyle = 'rgba(25,60,25,.7)'; ctx.stroke();
+      }
+      if (Math.sin(Y * 1.7 + X * 0.1) > 0) {
+        for (let p = 0; p < 4; p++) {
+          const a = (p / 4) * Math.PI * 2;
+          ctx.fillStyle = '#ff8fb0';
+          ctx.beginPath(); ctx.ellipse(X + 8 + Math.cos(a) * 2, Y - 10 + Math.sin(a) * 1.6, 1.7, 1.3, a, 0, 7); ctx.fill();
+        }
+        ctx.fillStyle = '#ffe082';
+        ctx.beginPath(); ctx.arc(X + 8, Y - 10, 1, 0, 7); ctx.fill();
+      }
+    }
   };
   const rail = (x: number, y: number, w: number) => {
     const X = x - cam.x, Y = y - cam.y;
@@ -1433,6 +1477,8 @@ function drawCropPlantInner(ctx: CanvasRenderingContext2D, cx: number, baseY: nu
     if (Math.sin(t * 3 + seed) > 0.4) drawSparkle(ctx, cx - 24, baseY - H - 2, 6, 0.95);
     if (Math.cos(t * 2.6 + seed * 1.7) > 0.4) drawSparkle(ctx, cx + 24, baseY - H + 4, 6, 0.95);
   }
+  // ULTRA: sương sớm đọng lá + cỏ non quanh gốc + sheen nắng trên tán
+  if (Q_ULTRA) ultraCropDetail(ctx, cx, baseY, stage, t, seed);
 }
 
 // ============================================================
@@ -1873,6 +1919,29 @@ function axEye(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, b
 //  CHUỒNG GÀ–VỊT + TRẠI BÒ–HEO–CỪU (nhà + sân chi tiết)
 //  ⚠️ GIỮ NGUYÊN 100% — KHÔNG SỬA 2 HÀM NHÀ NÀY
 // ============================================================
+// ---------- ULTRA: điểm nhấn chi tiết cho chuồng/trại/shop (không phủ màu) ----------
+function uFarmAccents(ctx: CanvasRenderingContext2D, X: number, Y: number, w: number, h: number, t: number, seed: number) {
+  // dây leo góc tường: 5 lá so le lắc nhẹ + chấm sáng non
+  for (let k = 0; k < 5; k++) {
+    const h1 = hash2(k * 13 + seed, 9);
+    const lx = X + 8 + (k % 2 ? 5 : -4) + Math.sin(t * 1.4 + k + seed) * 1.4;
+    const ly = Y + h - 18 - (k / 5) * (h - 44) + h1 * 4;
+    ctx.fillStyle = k % 3 ? '#3f8f3a' : '#57b04b';
+    ctx.beginPath(); ctx.ellipse(lx, ly, 4.2, 2.8, k % 2 ? 0.6 : -0.5, 0, 7); ctx.fill();
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(25,60,25,.7)'; ctx.stroke();
+    ctx.fillStyle = 'rgba(220,255,215,.6)';
+    ctx.beginPath(); ctx.ellipse(lx - 1.1, ly - 0.9, 1.3, 0.8, -0.4, 0, 7); ctx.fill();
+  }
+  // rêu xanh mọc chân móng
+  for (let k = 0; k < 4; k++) {
+    const mh = hash2(seed * 31 + k, 47);
+    ctx.fillStyle = mh > 0.5 ? 'rgba(72,140,70,.5)' : 'rgba(70,120,60,.45)';
+    ell(ctx, X + 10 + mh * (w - 20), Y + h - 8 + hash2(k, seed) * 4, 4.5, 2);
+  }
+  // lấp lánh mái/tường
+  if (Math.sin(t * 2.2 + seed) > 0.6) drawSparkle(ctx, X + w * 0.7, Y + 18, 4.5, 0.8);
+}
+
 function drawCoopDetailed(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, t: number) {
   const X = COOP.x - cam.x, Y = COOP.y - cam.y;
   // --- sân anime: cát mật ong + chấm bi + hoa tí hon ---
@@ -1958,6 +2027,8 @@ function drawCoopDetailed(ctx: CanvasRenderingContext2D, cam: { x: number; y: nu
     ctx.strokeStyle = 'rgba(150,180,200,.8)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(fx - 4, fy); ctx.lineTo(fx + 4, fy); ctx.stroke();
   }
+  // ULTRA: dây leo góc sân + rêu chân tường + lấp lánh
+  if (Q_ULTRA) uFarmAccents(ctx, X + 4, Y + 8, COOP.w - 8, COOP.h - 8, t, 3);
 }
 
 function drawBarnDetailed(ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, t: number) {
@@ -2061,6 +2132,8 @@ function drawBarnDetailed(ctx: CanvasRenderingContext2D, cam: { x: number; y: nu
   ctx.strokeStyle = '#c39a3b'; ctx.lineWidth = 1.6;
   ctx.beginPath(); ctx.arc(bx + 62, by + 2, 10, 0, 7); ctx.stroke();
   animeHeart(ctx, bx + 62, by - 2, 8);
+  // ULTRA: dây leo + rêu + lấp lánh cho trại bò
+  if (Q_ULTRA) uFarmAccents(ctx, X + 6, Y + 8, BARN.w - 12, BARN.h - 8, t, 7);
 }
 
 // ============================================================
@@ -2141,6 +2214,8 @@ function drawPondDetailed(ctx: CanvasRenderingContext2D, cam: { x: number; y: nu
     ctx.restore();
   }
   ctx.globalAlpha = 1;
+  // ULTRA: lưới caustic nắng dưới đáy ao + lấp lánh trôi dày
+  if (Q_ULTRA) ultraWaterDetail(ctx, X, Y, Wp, Hp, t);
   // viền bọt mép bờ (sóng vỗ nhẹ)
   if (!Q_LOW) {
     ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 2;
@@ -2402,6 +2477,8 @@ function drawRiverDetailed(ctx: CanvasRenderingContext2D, cam: { x: number; y: n
     for (let x = 0; x <= WORLD.w; x += 60) ctx.lineTo(x - cam.x, ww + 3 + Math.sin(t * 2 + x * 0.03) * 1.5);
     ctx.stroke();
   }
+  // ULTRA: lưới caustic nắng dưới đáy sông (chỉ trong dải nước nhìn thấy)
+  if (Q_ULTRA) ultraWaterDetail(ctx, 0 - cam.x, ww + 8, WORLD.w, 180, t);
   // bóng cá anime bơi (ellipse + đuôi + vây, có viền sáng)
   for (let i = 0; i < 6; i++) {
     const sx = ((i * 311 + t * (36 + i * 7)) % (WORLD.w + 140)) - 70 - cam.x;
@@ -2612,6 +2689,8 @@ function drawShopDetailed(ctx: CanvasRenderingContext2D, cam: { x: number; y: nu
   ctx.beginPath(); ctx.arc(sx, sy - 10, 4.6, 0.4, Math.PI - 0.4); ctx.stroke();
   ctx.fillStyle = 'rgba(255,140,150,.55)';
   ell(ctx, sx - 6.4, sy - 6, 2, 1.4); ell(ctx, sx + 6.4, sy - 6, 2, 1.4);
+  // ULTRA: dây leo + rêu + lấp lánh cho cửa hàng
+  if (Q_ULTRA) uFarmAccents(ctx, X + 6, Y + 10, SHOPD.w - 12, SHOPD.h - 6, t, 11);
 }
 
 // ---------- cây anime: thân viền + tán viền nâu + highlight xốp ----------
@@ -2700,6 +2779,8 @@ function drawTreeDetailed(ctx: CanvasRenderingContext2D, x: number, y: number, s
   // hoa cỏ dưới gốc
   axFlower(ctx, x - 22 * sc, y - 2, 5.5, '#ffffff');
   axFlower(ctx, x + 22 * sc, y - 1, 5.5, '#ff8fb0');
+  // ULTRA: cụm lá non viền sáng quanh tán + đốm nắng xuyên tán rơi
+  if (Q_ULTRA) ultraTreeDetail(ctx, x, y, sc, sway, t);
 }
 
 // ============================================================
@@ -2991,6 +3072,8 @@ function drawAnimalDetailed(ctx: CanvasRenderingContext2D, X: number, Y: number,
     ctx.restore();
   }
   ctx.restore();
+  // ULTRA: lông óng ánh — viền nắng sống lưng + bụi lông lấp lánh
+  if (Q_ULTRA) ultraAnimalDetail(ctx, X, Y, sc, t, uid);
   // thanh no anime + trạng thái
   const bw = 42 * sc;
   axBar(ctx, X, Y - 38 * sc, bw, Math.max(0, hunger) / 100, hunger > 50 ? '#7CFC6a' : hunger > 25 ? '#ffeb3b' : '#ff5b5b');
@@ -4031,6 +4114,23 @@ export function drawPlayerDetailed(ctx: CanvasRenderingContext2D, X: number, Y: 
         ctx.fillStyle = '#bfe6ff'; rr(ctx, grip.x - 6.8, grip.y - 3.8, 3.6, 2.6, 1.2); ctx.fill();
       }
       ctx.restore();
+    }
+  }
+  // ULTRA: viền nắng lấp lánh quanh người + bụi vàng bay dưới chân khi bước
+  if (Q_ULTRA) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,245,200,.45)';
+    ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.ellipse(X, Y - 30 + bob * 0.3, 15, 24, 0, Math.PI * 1.05, Math.PI * 1.95);
+    ctx.stroke();
+    ctx.restore();
+    if (moving) {
+      for (let k = 0; k < 2; k++) {
+        const ph = (t * 2.6 + k * 0.5) % 1;
+        ctx.fillStyle = `rgba(255,252,230,${(0.55 * (1 - ph)).toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(X - 10 + ph * 20, Y + 2 - ph * 8, 1.6, 0, 7); ctx.fill();
+      }
     }
   }
   axNamePill(ctx, X, Y - 52 + bob * 0.3, name);

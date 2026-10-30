@@ -4,7 +4,7 @@ import { useGame } from '../game/store';
 import type { GraphicsQuality, ResMode } from '../game/types';
 
 const QUALITY_META: { id: GraphicsQuality; name: string; icon: string; desc: string }[] = [
-  { id: 'ultra', name: 'Ultra điện ảnh', icon: '💎', desc: 'Khác biệt rõ nhất: tia nắng thể tích, lens flare, bóng mây trôi, bụi nắng, cánh hoa rơi, chim bay, mưa tóe + chớp, tuyết sâu, sao băng, đom đóm quầng sáng, vignette + grain phim. DPR tới 2x — chỉ máy khỏe' },
+  { id: 'ultra', name: 'Ultra đỉnh cao', icon: '💎', desc: 'Vẽ chi tiết nhất, không lớp phủ màu làm mờ hình: thảm cỏ hoa dày đặc, sương sớm trên cây trồng, lông óng ánh vật nuôi, vân nước caustic ao/sông, tán cây xếp lớp + tia nắng thể tích, cánh hoa rơi, chim bay, sao băng + đom đóm, mưa tóe + chớp, tuyết sâu. DPR tới 2x — chỉ máy khỏe' },
   { id: 'high', name: 'Cao', icon: '✨', desc: 'Đủ hiệu ứng: bóng, tia lửa, mây, bướm, đom đóm, quầng đèn, mưa tuyết dày. DPR tới 1.5x' },
   { id: 'medium', name: 'Trung bình', icon: '🌤️', desc: 'Tia lửa thưa 1/2, bớt mây/bướm/đom đóm/mưa tuyết; giữ bóng + quầng đèn. DPR tới 1.25x' },
   { id: 'low', name: 'Thấp', icon: '🚀', desc: 'Nền phẳng, cỏ gọn, bỏ tia lửa/bóng/mây/quầng/aura/cột sáng — nhẹ nhất cho máy yếu. DPR khóa 1x' },

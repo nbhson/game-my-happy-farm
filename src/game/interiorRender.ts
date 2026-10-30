@@ -21,11 +21,12 @@ interface RenderOpts {
   stageColor: string;
   /** đêm hay ngày (cửa sổ đổi màu kính theo) */
   night: boolean;
-  /** cấp đồ họa (ultra → phủ bụi đèn + vignette điện ảnh trong nhà) */
+  /** cấp đồ họa (ultra → vẽ chi tiết đỉnh cao + hạt hiệu ứng, không phủ màu) */
   quality?: string;
 }
 
 // ---------- helpers ----------
+let I_ULTRA = false; // đặt mỗi frame trong renderInterior (isUltra(o.quality))
 function rr(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -1197,6 +1198,16 @@ function drawFurn(ctx: CanvasRenderingContext2D, d: InteriorDef, f: InteriorDef[
     default:
       break;
   }
+  // ULTRA: sheen bóng đồ đạc + chấm sáng lấp lánh (nét neo đúng đồ, không phủ màu)
+  if (I_ULTRA) {
+    ctx.fillStyle = 'rgba(255,255,255,.14)';
+    ell(ctx, X + f.w * 0.35, Y + 8, Math.max(8, f.w * 0.22), 4.5);
+    if (Math.sin(t * 2 + f.x * 0.05 + f.y * 0.03) > 0.65) {
+      ctx.fillStyle = 'rgba(255,250,220,.85)';
+      ctx.fillRect(X + f.w - 16, Y + 6, 3.6, 1);
+      ctx.fillRect(X + f.w - 14.2, Y + 4.2, 1, 3.6);
+    }
+  }
   ctx.restore();
 }
 
@@ -1495,6 +1506,7 @@ export function renderInterior(
 ) {
   const d: InteriorDef | undefined = INTERIORS[id];
   if (!d) return;
+  I_ULTRA = isUltra(o.quality);
   const X0 = -cam.x, Y0 = -cam.y;
   // nền ngoài phòng (viền tối)
   ctx.fillStyle = '#241a10'; ctx.fillRect(0, 0, vw, vh);
@@ -1561,6 +1573,28 @@ export function renderInterior(
   ctx.fillStyle = '#ffe9a8'; ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'center';
   ctx.fillText('LỐI RA ▼', X0 + dr.x + dr.w / 2, Y0 + dr.y + 10);
   ctx.textAlign = 'left';
+  // ULTRA nội thất: vệt nắng qua cửa sổ đổ dài + vân sàn bóng gương (không phủ màu)
+  if (I_ULTRA) {
+    if (!o.night) {
+      for (let i = 0; i < 3; i++) {
+        const wx = X0 + 140 + i * 380;
+        ctx.fillStyle = 'rgba(255,244,200,.09)';
+        ctx.beginPath();
+        ctx.moveTo(wx + 16, Y0 + 116);
+        ctx.lineTo(wx + 62, Y0 + 116);
+        ctx.lineTo(wx + 158, Y0 + 320);
+        ctx.lineTo(wx + 58, Y0 + 320);
+        ctx.closePath(); ctx.fill();
+      }
+    }
+    // vệt phản chiếu mềm trên sàn (cả sàn gỗ lẫn gạch men)
+    for (let k = 0; k < 6; k++) {
+      const hx = X0 + 90 + ((k * 331) % Math.max(80, d.w - 160));
+      const hy = Y0 + 200 + ((k * 137) % Math.max(80, d.h - 260));
+      ctx.fillStyle = 'rgba(255,255,255,.05)';
+      ell(ctx, hx, hy, 30, 7);
+    }
+  }
 
   // --- xếp lớp theo y: đồ, NPC, người chơi ---
   interface D { y: number; fn: () => void }
@@ -1617,12 +1651,12 @@ export function renderInterior(
   }
   ctx.globalAlpha = 1;
 
-  // --- ánh sáng ấm trong nhà + tối viền ---
+  // --- ánh sáng ấm trong nhà + tối viền (ULTRA: vignette rất nhẹ để hình rõ nét) ---
   ctx.fillStyle = 'rgba(255,186,92,.07)'; ctx.fillRect(0, 0, vw, vh);
   const vg = ctx.createRadialGradient(vw / 2, vh / 2, Math.min(vw, vh) * 0.42, vw / 2, vh / 2, Math.max(vw, vh) * 0.75);
-  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(20,8,0,.34)');
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, I_ULTRA ? 'rgba(20,8,0,.14)' : 'rgba(20,8,0,.34)');
   ctx.fillStyle = vg; ctx.fillRect(0, 0, vw, vh);
-  // ULTRA trong nhà: bụi bay trong quầng đèn + vignette điện ảnh + grain
+  // ULTRA trong nhà: quầng đèn thở + bụi bay trong luồng đèn (không phủ màu)
   if (isUltra(o.quality)) {
     drawUltraPost(ctx, vw, vh, { x: 0, y: 0 }, t, { dayTime: o.night ? 0.05 : 0.5, night: o.night, indoor: true });
   } else if (o.quality === 'high') {

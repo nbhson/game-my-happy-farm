@@ -1295,7 +1295,7 @@ export const useGame = create<GameState>()(
         // chọn tay = tắt Auto để giữ đúng ý người chơi
         set({ quality: q, autoQuality: false });
         sfx.click();
-        get().toast(q === 'ultra' ? 'Đồ họa: Ultra điện ảnh 💎 (máy khỏe mới mượt)' : q === 'high' ? 'Đồ họa: Cao (lung linh)' : q === 'medium' ? 'Đồ họa: Trung bình' : 'Đồ họa: Thấp (mượt nhất)');
+        get().toast(q === 'ultra' ? 'Đồ họa: Ultra đỉnh cao 💎 (chi tiết đẹp nhất, máy khỏe mới mượt)' : q === 'high' ? 'Đồ họa: Cao (lung linh)' : q === 'medium' ? 'Đồ họa: Trung bình' : 'Đồ họa: Thấp (mượt nhất)');
       },
       setAutoQuality: (v) => {
         set({ autoQuality: v });

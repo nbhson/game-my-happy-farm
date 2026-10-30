@@ -11,6 +11,7 @@ import {
 import { computePairOffsets, drawActionFx, drawBikeSide, drawEggThrow, drawKem, drawKiki, drawMimi, drawMotoSide, drawPairFx, drawPlayerDetailed, type PairActor, type VisitorDraw } from './render';
 import { drawMoon, drawSparkle, drawSun, setFxLevel } from './icons';
 import { drawUltraPost, drawHighPost, isUltra, isHigh } from './ultra';
+import { ultraGrassDetail } from './ultraArt';
 
 export interface TownRenderState {
   player: { x: number; y: number; dir: number; moving: boolean; tx: number | null; ty: number | null; name: string };
@@ -66,6 +67,58 @@ export function setTQ(q: string) {
   TQ_HIGH = isHigh(q);
   TQ_ULTRA = isUltra(q);
   setFxLevel(TQ_LOW ? 0 : TQ_MED ? 1 : 2);
+}
+
+// ---------- ULTRA: điểm nhấn chi tiết đỉnh cao cho nhà cửa thị trấn ----------
+// (chỉ chạy TQ_ULTRA — không lớp phủ màu, mọi nét neo đúng tường/móng nhà)
+/** Dây ivy leo góc tường: lá so le lắc nhẹ + tua cuốn non */
+function uIvy(ctx: CanvasRenderingContext2D, x: number, y: number, hgt: number, t: number, seed: number) {
+  const n = Math.max(4, Math.min(7, Math.floor(hgt / 14)));
+  for (let k = 0; k < n; k++) {
+    const h = hash2(k * 13 + Math.floor(seed), 9);
+    const ly = y + hgt - (k / n) * hgt;
+    const lx = x + (k % 2 ? 5 : -4) + Math.sin(t * 1.4 + k + seed) * 1.6;
+    ctx.fillStyle = k % 3 ? '#3f8f3a' : '#57b04b';
+    ctx.beginPath(); ctx.ellipse(lx, ly, 4.6, 3, k % 2 ? 0.6 : -0.5, 0, 7); ctx.fill();
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(25,60,25,.7)'; ctx.stroke();
+    ctx.fillStyle = 'rgba(220,255,215,.6)';
+    ctx.beginPath(); ctx.ellipse(lx - 1.2, ly - 1, 1.5, 0.9, -0.4, 0, 7); ctx.fill();
+  }
+  // tua cuốn non trên đỉnh dây
+  ctx.strokeStyle = 'rgba(60,120,50,.8)'; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x, y + 2);
+  ctx.quadraticCurveTo(x + 4 * Math.sin(t * 2 + seed), y - 4, x + 7 * Math.sin(t * 1.2 + seed), y - 6);
+  ctx.stroke();
+}
+
+/** ULTRA: điểm nhấn cho từng tòa nhà — ivy góc + rêu móng + lấp lánh tường/đèn
+ *  (export dùng chung town + mall) */
+export function uBuildingAccents(
+  ctx: CanvasRenderingContext2D, cam: { x: number; y: number }, t: number, night: boolean,
+  rects: { x: number; y: number; w: number; h: number }[],
+) {
+  for (let ri = 0; ri < rects.length; ri++) {
+    const b = rects[ri];
+    const X = b.x - cam.x, Y = b.y - cam.y;
+    if (X + b.w < -60 || X > 3200 || Y + b.h < -100 || Y > 2100) continue;
+    // ivy leo 2 góc tường (né giữa nhà — chỗ biển hiệu)
+    uIvy(ctx, X + 9, Y + 30, Math.min(b.h - 78, 90), t, ri * 1.7);
+    uIvy(ctx, X + b.w - 12, Y + 52, Math.min(b.h - 96, 70), t, ri * 3.1);
+    // rêu xanh mọc chân móng đá
+    for (let k = 0; k < 5; k++) {
+      const mh = hash2(ri * 31 + k, 47);
+      const mx = X + 8 + mh * (b.w - 16);
+      ctx.fillStyle = mh > 0.5 ? 'rgba(72,140,70,.55)' : 'rgba(70,120,60,.5)';
+      ell(ctx, mx, Y + b.h - 8 + hash2(k, ri * 5) * 5, 4.5, 2);
+    }
+    // sỏi trắng rải chân tường
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ell(ctx, X + 14 + hash2(ri, 3) * (b.w - 28), Y + b.h + 3, 3, 1.8);
+    // lấp lánh tường ban ngày / đom đóm đèn cửa ban đêm
+    if (night) drawSparkle(ctx, X + b.w - 24, Y + 56, 4, 0.75);
+    else if (Math.sin(t * 2 + ri * 3.1) > 0.6) drawSparkle(ctx, X + b.w * 0.3, Y + b.h * 0.42, 4.5, 0.75);
+  }
 }
 
 export const OUT = '#4a3226';
@@ -253,6 +306,19 @@ function drawTownBase(ctx: CanvasRenderingContext2D, cam: { x: number; y: number
       grassTuft(ctx, X + 8, Y, 1, t, i);
     } else grassTuft(ctx, X, Y, hash2(i, 7) > 0.5 ? 1 : 0.8, t, i);
   }
+  // ULTRA: thảm cỏ dày đỉnh cao — bụi cỏ gradient + hoa li ti + cỏ 4 lá,
+  // né đúng các khu chức năng; không phải lớp phủ màu nên hình luôn rõ nét
+  if (TQ_ULTRA) {
+    ultraGrassDetail(ctx, cam, W, H, t, (wx, wy) => {
+      if (Math.hypot(wx - PLAZA.x, wy - PLAZA.y) < PLAZA.r + 26) return true;
+      if (wy > 590 && wy < 700) return true;
+      if (wx > 750 && wx < 850) return true;
+      for (const b of [TOWN_HALL, TOWN_CAFE, TOWN_HOUSE1, TOWN_HOUSE2, TOWN_SMITH, TOWN_STAGE, TOWN_GARDEN, MALL_GATE]) {
+        if (wx > b.x - 16 && wx < b.x + b.w + 16 && wy > b.y - 16 && wy < b.y + b.h + 16) return true;
+      }
+      return false;
+    });
+  }
   // bồ công anh bay — Thấp: tắt
   if (TQ_LOW) return;
   for (let i = 0; i < 6; i++) {
@@ -351,6 +417,21 @@ function drawStreets(ctx: CanvasRenderingContext2D, cam: { x: number; y: number 
     stone(ctx, 758 - cam.x, y - cam.y, 7, 5);
     stone(ctx, 842 - cam.x, y - cam.y, 7, 5);
   }
+  // ULTRA: đá lát lấp lánh + hoa mọc khe đường (nét neo đúng mặt đường)
+  if (TQ_ULTRA) {
+    for (let i = 0; i < 16; i++) {
+      const px = (i * 233) % TOWN.w - cam.x, py = 612 + ((i * 71) % 56) - cam.y;
+      if (Math.sin(t * 3 + i * 2.4) <= 0.8) continue;
+      ctx.fillStyle = 'rgba(255,255,255,.8)';
+      ctx.fillRect(px - 2.4, py - 0.4, 4.8, 0.9);
+      ctx.fillRect(px - 0.4, py - 2.4, 0.8, 4.8);
+    }
+    for (let i = 0; i < 7; i++) {
+      const fx = (i * 421 + 60) % TOWN.w - cam.x;
+      flower(ctx, fx, 592 - cam.y, 4.5, ['#ff8fb0', '#ffffff', '#fff3a8'][i % 3]);
+      grassTuft(ctx, fx + 9, 684 - cam.y, 0.85, t, i * 3);
+    }
+  }
 }
 
 // ---------- quảng trường: 3 vòng đá + khảm sao + bồn hoa ----------
@@ -397,6 +478,18 @@ function drawPlaza(ctx: CanvasRenderingContext2D, cam: { x: number; y: number },
   }
   if (Math.sin(t * 2) > 0.5) drawSparkle(ctx, X - 180, Y - 120, 5, 0.8);
   if (Math.cos(t * 1.7) > 0.5) drawSparkle(ctx, X + 170, Y + 130, 5, 0.8);
+  // ULTRA: khảm sao rực rỡ + vệt nắng quét viền đá (điểm nhấn, không phủ màu)
+  if (TQ_ULTRA) {
+    for (let k = 0; k < 16; k += 2) {
+      const a = (k / 16) * Math.PI * 2 + t * 0.35;
+      if (Math.sin(t * 2.2 + k * 1.4) < 0.35) continue;
+      drawSparkle(ctx, X + Math.cos(a) * 132, Y + Math.sin(a) * 132, 4.2, 0.85);
+    }
+    ctx.strokeStyle = 'rgba(255,255,235,.5)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(X, Y, PLAZA.r - 8, Math.PI * 1.05 + Math.sin(t * 0.6) * 0.4, Math.PI * 1.55 + Math.sin(t * 0.5) * 0.3);
+    ctx.stroke();
+  }
 }
 
 // ---------- đài phun nước: bể 2 tầng + xu ước nguyện + cầu vồng ----------
@@ -2534,6 +2627,8 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
   drawBuilding(ctx, cam, t, TOWN_SMITH, { id: 'house', roof: 'lean', wall: '#4a4a55', roofTop: '#ff7043', roofBot: '#7f0000', sign: '🔨 LÒ RÈN', chimney: true }, night);
   drawSmithYard(ctx, cam, t, night);
   drawStage(ctx, cam, t, night);
+  // ULTRA: ivy + rêu + lấp lánh cho các tòa nhà chính (không lớp phủ màu)
+  if (TQ_ULTRA) uBuildingAccents(ctx, cam, t, night, [TOWN_HALL, TOWN_CAFE, TOWN_HOUSE1, TOWN_HOUSE2, TOWN_SMITH, TOWN_STAGE]);
   drawFarmGate(ctx, cam, t);
   // lối đá mới lên Khu mua sắm & giải trí (góc đông-bắc) + cổng vòm neon
   stonePath(ctx, cam, 1486, 220, 68, 392, t, 3);
@@ -2570,6 +2665,8 @@ export function renderTown(ctx: CanvasRenderingContext2D, W: number, H: number, 
   drawCultureHall(ctx, cam, t, night, s.wedding);
   drawNightMarket(ctx, cam, t, night, s.market);
   drawBoardSign(ctx, cam, t);
+  // ULTRA: điểm nhấn cho nhà văn hóa + chợ đêm (vẽ sau để nằm ĐÈN element)
+  if (TQ_ULTRA) uBuildingAccents(ctx, cam, t, night, [CULTURE_HALL, NIGHT_MARKET]);
   // thêm 2 cây anh đào lấp chỗ shop/casino cũ ở đông-bắc
   drawSakura(ctx, cam, 1290, 330, t, 9.1);
   drawSakura(ctx, cam, 1290, 500, t, 10.7);

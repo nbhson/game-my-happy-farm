@@ -1,8 +1,9 @@
-// ===== ULTRA graphics layer — phủ điện ảnh lên trên renderer 2D vẽ tay =====
-// Triết lý: không sửa art hiện có, chỉ thêm 3 lớp phủ screen-space chạy khi
-// quality === 'ultra': (1) color grading theo giờ, (2) ánh sáng thể tích
-// (god rays / lens flare / quầng trăng / bóng mây trôi), (3) hạt sự sống
-// (bụi nắng, cánh hoa, chim, đom đóm, mưa bắn tóe / tuyết sâu, sao băng).
+// ===== ULTRA graphics layer — hạt hiệu ứng sống động phủ trên renderer 2D vẽ tay =====
+// Triết lý MỚI: KHÔNG dùng lớp phủ màu toàn màn hình (đã bỏ color grading,
+// vignette điện ảnh, letterbox, grain phim, bóng mây trôi — chúng làm xỉn và
+// che mờ hình vẽ tay bên dưới). Ultra chỉ giữ các hạt/hiệu ứng CỤC BỘ đắt giá:
+// tia nắng thể tích từ mặt trời, lens flare cạnh mặt trời, bụi nắng, cánh hoa,
+// chim bay, trời đêm dày sao + sao băng + đom đóm, quầng trăng, mưa tóe/tuyết sâu.
 // Toàn bộ dùng hình khối rẻ (fillRect/arc/ellipse), số lượng có chặn trên,
 // không cấp phát mảng mỗi frame — máy khỏe mới nên bật.
 import type { WeatherKind } from './types';
@@ -18,7 +19,7 @@ export interface UltraEnv {
   dayTime: number; // 0..1 (0 = nửa đêm)
   weather?: WeatherKind;
   night?: boolean;
-  /** trong nhà: bỏ nắng/mưa/chim, chỉ giữ bụi đèn + vignette điện ảnh */
+  /** trong nhà: bỏ nắng/mưa/chim, chỉ giữ bụi trong quầng đèn */
   indoor?: boolean;
 }
 
@@ -95,14 +96,6 @@ function godRays(ctx: CanvasRenderingContext2D, W: number, H: number, t: number,
     ctx.closePath();
     ctx.fill();
   }
-  // vệt sáng quét ngang rất chậm cho cảm giác "không khí đang thở"
-  const sweepX = ((t * 40) % (W + 600)) - 300;
-  const g = ctx.createLinearGradient(sweepX - 120, 0, sweepX + 120, 0);
-  g.addColorStop(0, 'rgba(255,255,240,0)');
-  g.addColorStop(0.5, `rgba(255,255,240,${(0.085 * strength).toFixed(3)})`);
-  g.addColorStop(1, 'rgba(255,255,240,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
   ctx.restore();
 }
 
@@ -341,34 +334,7 @@ function ultraWeather(ctx: CanvasRenderingContext2D, W: number, H: number, t: nu
   }
 }
 
-/** Lớp cuối — vignette điện ảnh + grain phim (giữ HUD canvas nổi vì gọi trước HUD) */
-function cinematic(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, night: boolean) {
-  ctx.save();
-  const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.42, W / 2, H / 2, Math.max(W, H) * 0.72);
-  vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, night ? 'rgba(4,4,20,.5)' : 'rgba(70,40,10,.28)');
-  ctx.fillStyle = vg;
-  ctx.fillRect(0, 0, W, H);
-  // dải letterbox cực mỏng tạo chất điện ảnh mà không che gameplay
-  const bar = ctx.createLinearGradient(0, 0, 0, H);
-  bar.addColorStop(0, 'rgba(0,0,0,.24)');
-  bar.addColorStop(0.07, 'rgba(0,0,0,0)');
-  bar.addColorStop(0.93, 'rgba(0,0,0,0)');
-  bar.addColorStop(1, 'rgba(0,0,0,.24)');
-  ctx.fillStyle = bar;
-  ctx.fillRect(0, 0, W, H);
-  // grain phim: 60 hạt li ti trôi theo thời gian
-  ctx.fillStyle = 'rgba(255,255,255,.05)';
-  const f = Math.floor(t * 12);
-  for (let i = 0; i < 60; i++) {
-    const gx = hash2(i, f % 97) * W;
-    const gy = hash2(f % 89, i) * H;
-    ctx.fillRect(gx, gy, 1.4, 1.4);
-  }
-  ctx.restore();
-}
-
-/** Trong nhà ultra: bụi bay trong quầng đèn + ấm điện ảnh (không nắng/mưa/chim) */
+/** Trong nhà ultra: bụi bay trong quầng đèn (không nắng/mưa/chim, không phủ màu) */
 function indoorGlow(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, night: boolean) {
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
@@ -403,6 +369,9 @@ function indoorGlow(ctx: CanvasRenderingContext2D, W: number, H: number, t: numb
 }
 
 // ================= API chính: gọi 1 dòng cuối mỗi renderer =================
+// Đã bỏ color grading + vignette/letterbox/grain "điện ảnh" (che mờ hình vẽ tay).
+// Giữ lại bóng mây trôi (hiệu ứng người chơi yêu thích) + hạt hiệu ứng cục bộ.
+// Ultra = element vẽ chi tiết hơn (ultraArt.ts) + hạt hiệu ứng dưới đây.
 export function drawUltraPost(
   ctx: CanvasRenderingContext2D, W: number, H: number,
   cam: { x: number; y: number }, t: number, env: UltraEnv,
@@ -410,12 +379,10 @@ export function drawUltraPost(
   const night = env.night ?? (env.dayTime < 0.2 || env.dayTime > 0.82);
   if (env.indoor) {
     indoorGlow(ctx, W, H, t, night);
-    cinematic(ctx, W, H, t, night);
     return;
   }
   const weather = env.weather ?? 'sunny';
   const sun = sunUp(env.dayTime);
-  grade(ctx, W, H, env.dayTime, night, false);
   cloudShadows(ctx, W, H, cam.x, t, night ? 0.25 : 0.8);
   godRays(ctx, W, H, t, night ? 0 : Math.max(0.25, sun));
   lensFlare(ctx, W, t, night ? 0 : sun);
@@ -429,7 +396,6 @@ export function drawUltraPost(
   if (!night && weather === 'sunny') petals(ctx, W, H, t, isDusk(env.dayTime) ? 24 : 18);
   if (weather !== 'sunny') ultraWeather(ctx, W, H, t, weather);
   else if (!night) ultraWeather(ctx, W, H, t, 'sunny');
-  cinematic(ctx, W, H, t, night);
 }
 
 // ================= HIGH GRAPHICS — phủ nhẹ hơn Ultra =================

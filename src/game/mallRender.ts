@@ -13,6 +13,8 @@ import {
   txt, type TownRenderState,
 } from './townRender';
 import { drawUltraPost, drawHighPost } from './ultra';
+import { ultraGrassDetail, ultraWaterDetail } from './ultraArt';
+import { uBuildingAccents } from './townRender';
 import { drawBiteComboHUD, drawCatchPop, drawPlayerDetailed, drawSittingFisher, withDepth, type RenderState } from './render';
 import { drawSparkle } from './icons';
 
@@ -41,6 +43,19 @@ function drawMallBase(ctx: CanvasRenderingContext2D, cam: { x: number; y: number
       flower(ctx, X, Y - 8, 6.5, ['#ff8fb0', '#ffffff', '#ffeb3b', '#ce93d8'][i % 4]);
       grassTuft(ctx, X + 8, Y, 1, t, i);
     } else grassTuft(ctx, X, Y, 0.9, t, i);
+  }
+  // ULTRA: thảm cỏ dày đỉnh cao — bụi cỏ gradient + hoa li ti, né nhà/đường/sông/đường đua
+  if (TQ_ULTRA) {
+    ultraGrassDetail(ctx, cam, W, H, t, (wx, wy) => {
+      if (distToRaceLine(wx, wy) < RACE_ROAD_HALF + 22) return true;
+      if (wy > 590 && wy < 700) return true;
+      if (wx > 750 && wx < 850) return true;
+      if (wy > MALL_RIVER.y - 30 && wy < MALL_RIVER.y + MALL_RIVER.h + 30) return true;
+      for (const b of solids) {
+        if (wx > b.x - 16 && wx < b.x + b.w + 16 && wy > b.y - 16 && wy < b.y + b.h + 16) return true;
+      }
+      return false;
+    });
   }
 }
 
@@ -100,6 +115,8 @@ function drawMallRiver(ctx: CanvasRenderingContext2D, cam: { x: number; y: numbe
     ctx.beginPath(); ctx.ellipse(fx, fy, 12, 5, Math.sin(t * 3 + k) * 0.3, 0, 7); ctx.fill();
     if (Math.sin(t * 2 + k * 2.4) > 0.7) drawSparkle(ctx, fx + 8, fy - 8, 4, 0.8);
   }
+  // ULTRA: lưới caustic nắng dưới đáy sông mall + lấp lánh trôi
+  if (TQ_ULTRA) ultraWaterDetail(ctx, 0 - cam.x, Y0 + 4, MALL.w, R.h - 8, t);
   // cầu gỗ giữa
   const B = MALL_BRIDGE;
   const BX = B.x - cam.x, BY = B.y - cam.y;
@@ -220,6 +237,23 @@ function drawCircuit(ctx: CanvasRenderingContext2D, cam: { x: number; y: number 
   txt(ctx, 'TRƯỜNG ĐUA', 1150 - cam.x, 800 - cam.y - 40, 14, night ? '#ffeb3b' : '#2b2117');
   // khán đài phía bắc đường thẳng trên
   drawTribune(ctx, cam, t, night, 1000, 548, 150);
+  // ULTRA: vệt lốp mòn trên tim đường + lấp lánh curb (chi tiết đua, neo đúng mặt đường)
+  if (TQ_ULTRA) {
+    for (let d = 0; d < RACE_LOOP_TOTAL; d += 210) {
+      const p = loopPoint(d);
+      const fx = p.x - cam.x, fy = p.y - cam.y;
+      if (fx < -30 || fx > 2600 || fy < -30 || fy > 2100) continue;
+      ctx.fillStyle = 'rgba(15,15,22,.13)';
+      ell(ctx, fx + Math.sin(d * 0.1) * 10, fy + 3, 15, 3);
+    }
+    for (let d = 40; d < RACE_LOOP_TOTAL; d += 260) {
+      const p = loopPoint(d);
+      const fx = p.x + Math.cos(p.ang + Math.PI / 2) * (RACE_ROAD_HALF - 6) - cam.x;
+      const fy = p.y + Math.sin(p.ang + Math.PI / 2) * (RACE_ROAD_HALF - 6) - cam.y;
+      if (fx < -20 || fx > 2600 || fy < -30 || fy > 2100) continue;
+      if (Math.sin(t * 3.2 + d * 0.01) > 0.72) drawSparkle(ctx, fx, fy, 3.6, 0.8);
+    }
+  }
 }
 
 /** khán đài mini: mái caro + 3 hàng khán giả */
@@ -313,6 +347,8 @@ export function renderMall(ctx: CanvasRenderingContext2D, W: number, H: number, 
   drawCarDealer(ctx, cam, t, MALL_DEALER.x, MALL_DEALER.y);
   drawCasino(ctx, cam, t, night, MALL_CASINO);
   drawLotterySeller(ctx, cam, t, night, MALL_LOTTERY.x, MALL_LOTTERY.y);
+  // ULTRA: ivy + rêu + lấp lánh cho các tòa nhà mall (không lớp phủ màu)
+  if (TQ_ULTRA) uBuildingAccents(ctx, cam, t, night, [MALL_MART, MALL_XOSO, MALL_WOLF, MALL_RACE, MALL_GARAGE, MALL_CASINO]);
   // cổng về thị trấn (mép trái)
   {
     const gc = mallTownGateCenter();
@@ -355,7 +391,7 @@ export function renderMall(ctx: CanvasRenderingContext2D, W: number, H: number, 
     { x: MALL_RACE.x + MALL_RACE.w / 2, y: MALL_RACE.y, r: 110 },
   ]);
   // phủ post-processing cuối cùng (gọi sau drawSkyFx để nổi trên mọi lớp như town):
-  // ultra = điện ảnh đầy đủ; high = phủ nhẹ. Trước đây mall thiếu cả hai.
+  // ultra = hạt hiệu ứng cục bộ + bóng mây (không lớp phủ màu); high = phủ nhẹ.
   if (TQ_ULTRA) {
     drawUltraPost(ctx, W, H, cam, t, { dayTime: dt, weather: s.weather ?? 'sunny', night });
   } else if (TQ_HIGH) {
